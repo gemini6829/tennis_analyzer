@@ -4,7 +4,7 @@
 
 ## — 5/31/2026 —
 ### Achievements (more advanced features)
-<img align="right" width="500" src="assets/playback_view.png">
+<img align="right" width="450" src="assets/playback_view.png">
 
 - While the analyzer scans through the video, small tick marks appear on the video progress bar to show detected strokes. The marks are colored green, yellow, or red according to the stroke’s score. The user can click on a mark to watch the associated stroke.
 - A background scan plays the video at 4x speed and samples frames at regular intervals, so the user doesn’t have to watch the entire video for the analyzer to finish. There is also a Skip Scan option that allows the user to watch the video and see feedback appear in real time.
