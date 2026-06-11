@@ -1,0 +1,3003 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TennisAnalyzer — AI Stroke Analysis</title>
+
+  <!-- AI Detection Models -->
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5.1675469404/pose.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.10.0/dist/tf.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.2/dist/coco-ssd.min.js"></script>
+
+  <!-- Firebase v10 compat (auth, firestore, storage) -->
+  <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-storage-compat.js"></script>
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; overflow: hidden; }
+    body {
+      font-family: -apple-system, 'Segoe UI', sans-serif;
+      background: #0d1117;
+      color: #e6edf3;
+    }
+
+    /* ── SCREEN HELPERS ─────────────────────────────── */
+    .screen {
+      position: fixed; inset: 0; z-index: 50;
+      display: none;
+      align-items: center; justify-content: center;
+      background: #0d1117;
+    }
+    .screen.visible { display: flex; }
+
+    /* ── SETUP SCREEN ───────────────────────────────── */
+    #setup-screen { overflow-y: auto; align-items: flex-start; padding: 40px 20px; }
+    .setup-card {
+      max-width: 680px; width: 100%;
+      margin: 0 auto;
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 14px;
+      padding: 36px 40px;
+    }
+    .setup-logo { font-size: 22px; font-weight: 700; margin-bottom: 6px; }
+    .setup-logo span { color: #58a6ff; }
+    .setup-intro { font-size: 14px; color: #8b949e; margin-bottom: 28px; line-height: 1.6; }
+    .setup-step {
+      display: flex; gap: 16px; align-items: flex-start;
+      margin-bottom: 24px;
+    }
+    .setup-num {
+      flex-shrink: 0;
+      width: 28px; height: 28px;
+      border-radius: 50%;
+      background: #1f3a5f;
+      color: #79c0ff;
+      font-size: 13px; font-weight: 700;
+      display: flex; align-items: center; justify-content: center;
+      margin-top: 1px;
+    }
+    .setup-step-body { flex: 1; }
+    .setup-step-title { font-weight: 600; font-size: 14px; margin-bottom: 5px; }
+    .setup-step-desc { font-size: 13px; color: #8b949e; line-height: 1.55; margin-bottom: 8px; }
+    .setup-code {
+      background: #0d1117;
+      border: 1px solid #30363d;
+      border-radius: 6px;
+      padding: 12px 14px;
+      font-size: 12px;
+      font-family: 'Cascadia Code', 'Fira Code', monospace;
+      color: #79c0ff;
+      white-space: pre-wrap;
+      word-break: break-all;
+      line-height: 1.6;
+      margin-bottom: 8px;
+    }
+    .code-wrap { position: relative; margin-bottom: 8px; }
+    .code-wrap .setup-code { margin-bottom: 0; padding-right: 64px; }
+    .setup-subheading {
+      font-size: 13px; font-weight: 600; color: #c9d1d9;
+      margin: 16px 0 6px; padding-top: 14px;
+      border-top: 1px solid #21262d;
+    }
+    .setup-substep { margin-bottom: 10px; }
+    .copy-btn {
+      position: absolute; top: 7px; right: 8px;
+      background: #21262d; border: 1px solid #30363d;
+      color: #8b949e; border-radius: 5px;
+      font-size: 11px; font-weight: 500;
+      padding: 3px 9px; cursor: pointer;
+      transition: background 0.15s, color 0.15s, border-color 0.15s;
+    }
+    .copy-btn:hover { background: #388bfd22; border-color: #388bfd; color: #79c0ff; }
+    .copy-btn.copied { background: #23863622; border-color: #2ea043; color: #3fb950; }
+    .setup-link {
+      color: #58a6ff; text-decoration: none; font-size: 13px;
+    }
+    .setup-link:hover { text-decoration: underline; }
+    .setup-divider { border: none; border-top: 1px solid #30363d; margin: 24px 0; }
+    .setup-ready-note {
+      font-size: 13px; color: #8b949e; text-align: center; margin-top: 24px;
+      padding-top: 20px; border-top: 1px solid #30363d;
+    }
+
+    /* ── AUTH SCREEN ─────────────────────────────────── */
+    .auth-card {
+      width: 100%; max-width: 380px;
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 14px;
+      padding: 36px 32px;
+    }
+    .auth-logo {
+      font-size: 20px; font-weight: 700; text-align: center;
+      margin-bottom: 4px;
+    }
+    .auth-logo span { color: #58a6ff; }
+    .auth-tagline {
+      text-align: center; font-size: 13px; color: #8b949e; margin-bottom: 28px;
+    }
+    .auth-form-title {
+      font-size: 15px; font-weight: 600; margin-bottom: 18px;
+    }
+    .auth-input {
+      width: 100%;
+      background: #0d1117;
+      border: 1px solid #30363d;
+      border-radius: 7px;
+      padding: 10px 13px;
+      color: #e6edf3;
+      font-size: 14px;
+      margin-bottom: 10px;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    .auth-input:focus { border-color: #388bfd; }
+    .auth-input::placeholder { color: #484f58; }
+    .auth-error {
+      background: rgba(248,81,73,0.12);
+      border: 1px solid rgba(248,81,73,0.35);
+      border-radius: 6px;
+      padding: 9px 12px;
+      font-size: 13px;
+      color: #ffa198;
+      margin-bottom: 12px;
+      display: none;
+    }
+    .auth-btn {
+      width: 100%;
+      padding: 11px;
+      background: #238636;
+      border: 1px solid #2ea043;
+      border-radius: 7px;
+      color: #fff;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s;
+      margin-top: 4px;
+    }
+    .auth-btn:hover { background: #2ea043; }
+    .auth-btn:disabled { opacity: 0.6; cursor: default; }
+    .auth-footer {
+      text-align: center;
+      margin-top: 18px;
+      font-size: 13px;
+      color: #8b949e;
+    }
+    .auth-link-btn {
+      background: none; border: none;
+      color: #58a6ff; cursor: pointer; font-size: 13px;
+      padding: 0; margin-left: 4px;
+    }
+    .auth-link-btn:hover { text-decoration: underline; }
+    .auth-reset-btn {
+      background: none; border: none;
+      color: #8b949e; cursor: pointer; font-size: 12px;
+      display: block; margin: 12px auto 0;
+      text-decoration: underline;
+    }
+
+    /* ── MAIN APP ─────────────────────────────────────── */
+    #main-app {
+      display: none;
+      flex-direction: column;
+      height: 100%;
+      overflow: hidden;
+      position: fixed; inset: 0;
+    }
+    #main-app.visible { display: flex; }
+
+    /* ── HEADER ──────────────────────────────────────── */
+    #app-header {
+      flex-shrink: 0;
+      display: flex; align-items: center; gap: 14px;
+      padding: 0 18px; height: 52px;
+      background: #161b22;
+      border-bottom: 1px solid #30363d;
+      z-index: 10;
+    }
+    .logo {
+      display: flex; align-items: center; gap: 8px;
+      font-size: 17px; font-weight: 700; letter-spacing: -0.3px;
+    }
+    .logo-icon {
+      width: 28px; height: 28px;
+      background: linear-gradient(135deg, #238636, #2ea043);
+      border-radius: 7px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 15px;
+    }
+    .logo-accent { color: #58a6ff; }
+    .header-sep { width: 1px; height: 20px; background: #30363d; }
+    .header-tagline { font-size: 12px; color: #8b949e; }
+    #model-status-badge {
+      display: flex; align-items: center; gap: 6px;
+      font-size: 12px; color: #8b949e;
+      background: #21262d;
+      padding: 4px 10px; border-radius: 20px;
+      border: 1px solid #30363d;
+    }
+    .status-dot {
+      width: 7px; height: 7px; border-radius: 50%;
+      background: #d29922;
+      transition: background 0.3s;
+    }
+    .status-dot.ready { background: #3fb950; }
+    .status-dot.error { background: #f85149; }
+    #user-badge {
+      margin-left: auto;
+      display: flex; align-items: center; gap: 10px;
+    }
+    #user-email-label {
+      font-size: 12px; color: #8b949e;
+      max-width: 180px;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    #logout-btn {
+      background: none;
+      border: 1px solid #30363d;
+      border-radius: 6px;
+      padding: 4px 10px;
+      color: #8b949e;
+      font-size: 12px; cursor: pointer;
+      transition: border-color 0.15s, color 0.15s;
+    }
+    #logout-btn:hover { border-color: #f85149; color: #f85149; }
+    #handedness-btn {
+      background: none;
+      border: 1px solid #30363d;
+      border-radius: 6px;
+      padding: 4px 10px;
+      color: #8b949e;
+      font-size: 12px; cursor: pointer;
+      transition: border-color 0.15s, color 0.15s;
+    }
+    #handedness-btn:hover { border-color: #58a6ff; color: #58a6ff; }
+    #handedness-btn.left-handed { border-color: #8957e5; color: #bc8cff; }
+
+    /* ── APP BODY ─────────────────────────────────────── */
+    #app-body {
+      flex: 1; display: flex; overflow: hidden;
+    }
+
+    /* ── SIDEBAR ─────────────────────────────────────── */
+    #sidebar {
+      width: 230px; flex-shrink: 0;
+      background: #161b22;
+      border-right: 1px solid #30363d;
+      display: flex; flex-direction: column;
+      overflow: hidden;
+    }
+    .sidebar-hdr {
+      padding: 12px 14px 10px;
+      font-size: 11px; font-weight: 600; color: #8b949e;
+      text-transform: uppercase; letter-spacing: 0.8px;
+      border-bottom: 1px solid #30363d;
+    }
+    #clip-list { flex: 1; overflow-y: auto; padding: 6px; }
+    .clip-empty {
+      padding: 28px 14px; text-align: center;
+      color: #484f58; font-size: 13px; line-height: 1.5;
+    }
+    .clip-empty-icon { font-size: 28px; margin-bottom: 8px; }
+
+    /* Stored clip item */
+    .clip-item {
+      display: flex; align-items: center; gap: 9px;
+      padding: 8px 8px 8px 10px;
+      border-radius: 7px; cursor: pointer;
+      margin-bottom: 2px;
+      border: 1px solid transparent;
+      transition: background 0.12s, border-color 0.12s;
+      position: relative;
+    }
+    .clip-item:hover { background: #21262d; }
+    .clip-item.active { background: #1c2d40; border-color: #388bfd55; }
+    .clip-thumb {
+      flex-shrink: 0;
+      width: 34px; height: 25px;
+      background: #21262d; border-radius: 4px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 13px; color: #484f58;
+    }
+    .clip-item.active .clip-thumb { color: #58a6ff; }
+    .clip-info { flex: 1; min-width: 0; }
+    .clip-name {
+      font-size: 12px; font-weight: 500;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+      color: #e6edf3;
+    }
+    .clip-item.active .clip-name { color: #79c0ff; }
+    .clip-meta { font-size: 11px; color: #8b949e; margin-top: 1px; }
+    .clip-del {
+      flex-shrink: 0; display: none;
+      background: none; border: none;
+      color: #f85149; cursor: pointer;
+      font-size: 15px; line-height: 1;
+      padding: 2px 4px; border-radius: 3px;
+      transition: background 0.12s;
+    }
+    .clip-item:hover .clip-del { display: flex; align-items: center; }
+    .clip-del:hover { background: rgba(248,81,73,0.15); }
+
+    /* Upload progress item */
+    .clip-upload {
+      display: flex; align-items: flex-start; gap: 9px;
+      padding: 9px 10px;
+      border-radius: 7px; margin-bottom: 2px;
+      background: #1c2d40;
+      border: 1px solid #388bfd33;
+    }
+    .clip-upload-icon { flex-shrink: 0; font-size: 14px; padding-top: 1px; }
+    .clip-upload-info { flex: 1; min-width: 0; }
+    .clip-upload-name {
+      font-size: 12px; font-weight: 500;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+      margin-bottom: 5px; color: #79c0ff;
+    }
+    .clip-upload-bar {
+      height: 3px; background: #30363d; border-radius: 2px; overflow: hidden;
+      margin-bottom: 3px;
+    }
+    .clip-upload-fill {
+      height: 100%; background: #388bfd; border-radius: 2px;
+      transition: width 0.2s;
+    }
+    .clip-upload-pct { font-size: 11px; color: #8b949e; }
+    .clip-upload.error .clip-upload-fill { background: #f85149; }
+    .clip-upload.error .clip-upload-name { color: #ffa198; }
+
+    .sidebar-add-btn {
+      margin: 8px;
+      padding: 9px 10px;
+      border: 1px dashed #30363d;
+      border-radius: 7px;
+      background: none; color: #8b949e;
+      font-size: 12px; cursor: pointer;
+      text-align: center;
+      transition: border-color 0.15s, color 0.15s, background 0.15s;
+      display: flex; align-items: center; justify-content: center; gap: 6px;
+    }
+    .sidebar-add-btn:hover {
+      border-color: #58a6ff; color: #58a6ff; background: #1c2d4020;
+    }
+
+    /* ── MAIN CONTENT ────────────────────────────────── */
+    #main-content { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+
+    /* Upload zone */
+    #upload-area { flex: 1; display: flex; align-items: center; justify-content: center; padding: 32px; }
+    .drop-zone {
+      width: 100%; max-width: 500px;
+      border: 2px dashed #30363d; border-radius: 14px;
+      padding: 56px 40px; text-align: center; cursor: pointer;
+      transition: border-color 0.2s, background 0.2s;
+    }
+    .drop-zone:hover, .drop-zone.drag-over {
+      border-color: #388bfd; background: rgba(31,58,95,0.12);
+    }
+    .dz-icon { font-size: 52px; margin-bottom: 18px; line-height: 1; }
+    .dz-title { font-size: 20px; font-weight: 600; margin-bottom: 8px; }
+    .dz-sub { font-size: 14px; color: #8b949e; line-height: 1.5; }
+    .dz-or { margin: 18px 0 14px; font-size: 12px; color: #484f58; text-transform: uppercase; letter-spacing: 0.5px; }
+    .dz-btn {
+      display: inline-flex; align-items: center; gap: 7px;
+      padding: 10px 22px;
+      background: #238636; border: 1px solid #2ea043; border-radius: 7px;
+      color: #fff; font-size: 14px; font-weight: 500; cursor: pointer;
+      transition: background 0.15s;
+    }
+    .dz-btn:hover { background: #2ea043; }
+    .fmt-tags { margin-top: 18px; display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; }
+    .fmt-tag {
+      font-size: 11px; padding: 2px 8px; border-radius: 4px;
+      background: #21262d; color: #8b949e; border: 1px solid #30363d;
+    }
+
+    /* Analyzer */
+    #analyzer-area { flex: 1; display: none; flex-direction: column; overflow: hidden; }
+    #analysis-row { flex: 1; display: flex; overflow: hidden; }
+
+    /* Video panel */
+    #video-panel {
+      flex: 1; display: flex; flex-direction: column;
+      background: #000; overflow: hidden; min-width: 0;
+    }
+    #video-viewport {
+      flex: 1; position: relative; overflow: hidden;
+      display: flex; align-items: center; justify-content: center;
+      background: #000;
+    }
+    #video-el {
+      display: block;
+      width: 100%; height: 100%;
+      object-fit: contain;
+    }
+    #overlay-canvas {
+      position: absolute;
+      pointer-events: none;
+      /* position+size set by JS via getBoundingClientRect */
+    }
+    #video-loading {
+      position: absolute; inset: 0;
+      background: rgba(13,17,23,0.82);
+      display: none; flex-direction: column;
+      align-items: center; justify-content: center; gap: 14px; z-index: 5;
+    }
+    .spinner {
+      width: 38px; height: 38px;
+      border: 3px solid #30363d; border-top-color: #58a6ff;
+      border-radius: 50%;
+      animation: spin 0.75s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .loading-msg { font-size: 14px; color: #8b949e; }
+
+    /* Controls */
+    #controls-bar {
+      flex-shrink: 0;
+      background: #161b22; border-top: 1px solid #30363d;
+      padding: 10px 14px 12px;
+    }
+    #scrub-track {
+      width: 100%; height: 5px; background: #30363d;
+      border-radius: 3px; cursor: pointer; position: relative; margin-bottom: 10px;
+    }
+    #scrub-fill { height: 100%; background: #388bfd; border-radius: 3px; width: 0%; pointer-events: none; }
+    #scrub-thumb {
+      position: absolute; top: 50%; left: 0%;
+      transform: translate(-50%,-50%);
+      width: 13px; height: 13px;
+      background: #fff; border-radius: 50%;
+      box-shadow: 0 0 0 2px #388bfd; pointer-events: none; display: none;
+    }
+    #scrub-track:hover #scrub-thumb { display: block; }
+    .stroke-marker {
+      position: absolute;
+      top: -4px;
+      width: 4px;
+      height: 13px;
+      border-radius: 2px;
+      transform: translateX(-50%);
+      cursor: pointer;
+      z-index: 2;
+      opacity: 0.85;
+      transition: opacity 0.15s, transform 0.15s;
+    }
+    .stroke-marker:hover {
+      opacity: 1;
+      transform: translateX(-50%) scaleY(1.3);
+    }
+    .ctrl-row { display: flex; align-items: center; gap: 4px; }
+    .ctrl-btn {
+      background: none; border: none; color: #c9d1d9; cursor: pointer;
+      padding: 5px 7px; border-radius: 5px;
+      font-size: 16px; line-height: 1; display: flex; align-items: center; justify-content: center;
+      min-width: 30px; transition: background 0.12s, color 0.12s;
+    }
+    .ctrl-btn:hover { background: #21262d; color: #fff; }
+    .ctrl-btn.big { font-size: 20px; }
+    #time-label { font-size: 12px; color: #8b949e; font-variant-numeric: tabular-nums; padding: 0 6px; white-space: nowrap; }
+    .ctrl-gap { flex: 1; }
+    #det-fps { font-size: 11px; color: #484f58; padding: 0 4px; }
+    #speed-pick {
+      background: #21262d; border: 1px solid #30363d; color: #c9d1d9;
+      border-radius: 5px; padding: 3px 6px; font-size: 12px; cursor: pointer; outline: none;
+    }
+
+    /* Feedback panel */
+    #feedback-panel {
+      width: 300px; flex-shrink: 0;
+      background: #161b22; border-left: 1px solid #30363d;
+      display: flex; flex-direction: column; overflow: hidden;
+    }
+    .panel-hdr {
+      display: flex; align-items: center; gap: 8px;
+      padding: 12px 14px 11px;
+      border-bottom: 1px solid #30363d;
+      font-size: 13px; font-weight: 600;
+    }
+    .live-dot {
+      width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0;
+      background: #3fb950;
+      animation: livepulse 2s ease-in-out infinite;
+    }
+    @keyframes livepulse {
+      0%,100% { opacity:1; transform:scale(1); }
+      50%      { opacity:.4; transform:scale(.8); }
+    }
+    .live-dot.off { background: #484f58; animation: none; }
+    #feedback-scroll { flex: 1; overflow-y: auto; padding: 10px; }
+
+    /* Feedback UI components */
+    .fb-section { margin-bottom: 14px; }
+    .fb-lbl { font-size: 10px; font-weight: 700; color: #484f58; text-transform: uppercase; letter-spacing: 0.9px; margin-bottom: 7px; padding: 0 2px; }
+    .metrics-tbl { background: #21262d; border-radius: 8px; border: 1px solid #30363d; overflow: hidden; }
+    .m-row { display: flex; align-items: center; justify-content: space-between; padding: 7px 11px; border-bottom: 1px solid #30363d; font-size: 12px; }
+    .m-row:last-child { border-bottom: none; }
+    .m-name { color: #8b949e; }
+    .m-val { font-weight: 600; font-variant-numeric: tabular-nums; }
+    .m-good { color: #3fb950; }
+    .m-warn { color: #d29922; }
+    .m-bad  { color: #f85149; }
+
+    .fb-card { border-radius: 7px; padding: 9px 11px; margin-bottom: 6px; border-left: 3px solid transparent; font-size: 12px; line-height: 1.45; background: #21262d; }
+    .fb-card.good { border-color: #3fb950; }
+    .fb-card.warn { border-color: #d29922; }
+    .fb-card.info { border-color: #388bfd; }
+    .fb-card.tip  { border-color: #8957e5; }
+    .fb-tag { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 3px; }
+    .fb-card.good .fb-tag { color: #3fb950; }
+    .fb-card.warn .fb-tag { color: #d29922; }
+    .fb-card.info .fb-tag { color: #388bfd; }
+    .fb-card.tip  .fb-tag { color: #8957e5; }
+    .fb-text { color: #c9d1d9; }
+
+    .score-badge {
+      display: flex; align-items: center; justify-content: space-between;
+      background: #21262d; border: 1px solid #30363d; border-radius: 8px; padding: 10px 12px;
+    }
+    .score-lbl { font-size: 11px; color: #8b949e; margin-bottom: 2px; }
+    .score-val { font-size: 26px; font-weight: 700; line-height: 1; }
+    .score-val.good { color: #3fb950; }
+    .score-val.ok   { color: #d29922; }
+    .score-val.bad  { color: #f85149; }
+    .score-bar-wrap { width: 80px; height: 6px; background: #30363d; border-radius: 3px; overflow: hidden; margin-bottom: 4px; }
+    .score-bar { height: 100%; border-radius: 3px; transition: width 0.4s; }
+    .score-desc { font-size: 10px; color: #8b949e; text-align: right; }
+
+    .fb-waiting {
+      text-align: center; padding: 28px 14px;
+      color: #484f58; font-size: 12px; line-height: 1.6;
+    }
+    .fb-waiting-icon { font-size: 32px; margin-bottom: 10px; }
+    .fb-stroke-label {
+      display: inline-flex; align-items: center; gap: 5px;
+      background: #1c2d40; border: 1px solid #388bfd44;
+      border-radius: 20px; padding: 3px 10px;
+      font-size: 11px; color: #79c0ff; margin-bottom: 10px;
+    }
+    .fb-stroke-label .dot { width: 6px; height: 6px; border-radius: 50%; background: #388bfd; }
+
+    /* Step mode toggle */
+    /* Rescan button */
+    #rescan-btn {
+      margin-left: auto;
+      background: none;
+      border: 1px solid #30363d;
+      border-radius: 5px;
+      color: #8b949e;
+      font-size: 11px;
+      padding: 3px 9px;
+      cursor: pointer;
+      transition: border-color 0.15s, color 0.15s;
+      white-space: nowrap;
+    }
+    #rescan-btn:hover { border-color: #58a6ff; color: #58a6ff; }
+    #rescan-btn:disabled { opacity: 0.4; cursor: default; }
+
+    /* Auto-pause toggle switch */
+    .sbs-switch {
+      display: flex; align-items: center; gap: 7px;
+      cursor: pointer; user-select: none;
+      font-size: 11px; color: #8b949e;
+    }
+    .sbs-switch input { display: none; }
+    .sbs-slider {
+      width: 28px; height: 16px;
+      background: #30363d;
+      border-radius: 8px;
+      position: relative;
+      transition: background 0.2s, border-color 0.2s;
+      flex-shrink: 0;
+      border: 1px solid #30363d;
+    }
+    .sbs-slider::after {
+      content: '';
+      position: absolute;
+      width: 10px; height: 10px;
+      background: #8b949e;
+      border-radius: 50%;
+      top: 2px; left: 2px;
+      transition: transform 0.2s, background 0.2s;
+    }
+    .sbs-switch input:checked ~ .sbs-slider {
+      background: #1c2d40;
+      border-color: #388bfd;
+    }
+    .sbs-switch input:checked ~ .sbs-slider::after {
+      transform: translateX(12px);
+      background: #58a6ff;
+    }
+    .sbs-switch input:checked ~ .sbs-label { color: #58a6ff; }
+
+    /* Step mode action buttons */
+    .sbs-actions {
+      display: flex; gap: 8px;
+      padding: 10px; margin-top: 6px;
+      border-top: 1px solid #30363d;
+    }
+    .sbs-next {
+      flex: 1; background: #238636; border: 1px solid #2ea043;
+      border-radius: 6px; color: #fff; font-size: 12px;
+      font-weight: 600; padding: 8px; cursor: pointer;
+      transition: background 0.15s;
+    }
+    .sbs-next:hover { background: #2ea043; }
+    .sbs-reject {
+      flex: 1; background: none; border: 1px solid #30363d;
+      border-radius: 6px; color: #8b949e; font-size: 12px;
+      padding: 8px; cursor: pointer;
+      transition: border-color 0.15s, color 0.15s;
+    }
+    .sbs-reject:hover { border-color: #f85149; color: #f85149; }
+
+    /* Undo bar */
+    #undo-bar {
+      display: none;
+      flex-shrink: 0;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      border-top: 1px solid #30363d;
+      font-size: 12px; color: #8b949e;
+    }
+    #undo-bar.visible { display: flex; }
+    #undo-bar button {
+      margin-left: auto;
+      background: none;
+      border: 1px solid #388bfd;
+      border-radius: 5px;
+      color: #58a6ff;
+      font-size: 12px;
+      padding: 3px 12px;
+      cursor: pointer;
+    }
+    #undo-bar button:hover { background: #1c2d40; }
+
+    /* Scrollbars */
+    ::-webkit-scrollbar { width: 5px; height: 5px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #30363d; border-radius: 3px; }
+  </style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════
+     SETUP SCREEN  (shown when config is placeholder)
+═══════════════════════════════════════════════ -->
+<div id="setup-screen" class="screen">
+  <div class="setup-card">
+    <div class="setup-logo">🎾 Tennis<span>Analyzer</span> — Firebase Setup</div>
+    <p class="setup-intro">
+      To enable accounts and cloud video storage, you need a free Firebase project.
+      Follow these 5 steps, then paste your config into this file and refresh.
+    </p>
+
+    <div class="setup-step">
+      <div class="setup-num">1</div>
+      <div class="setup-step-body">
+        <div class="setup-step-title">Create a Firebase project</div>
+        <div class="setup-step-desc">
+          Go to <a class="setup-link" href="https://console.firebase.google.com" target="_blank">console.firebase.google.com</a>
+          → click <strong>Create a project</strong> → enter a name → follow the wizard to finish.
+        </div>
+      </div>
+    </div>
+
+    <div class="setup-step">
+      <div class="setup-num">2</div>
+      <div class="setup-step-body">
+        <div class="setup-step-title">Enable Email/Password sign-in</div>
+        <div class="setup-step-desc">
+          In the left sidebar go to <strong>Security → Authentication</strong>.
+          Click <strong>Get started</strong>, then open the <strong>Sign-in method</strong> tab.
+          Click <strong>Email/Password</strong>, toggle it <strong>Enable</strong>, and hit <strong>Save</strong>.
+        </div>
+      </div>
+    </div>
+
+    <div class="setup-step">
+      <div class="setup-num">3</div>
+      <div class="setup-step-body">
+        <div class="setup-step-title">Create a Firestore database</div>
+        <div class="setup-step-desc">
+          In the sidebar go to <strong>Databases &amp; Storage → Firestore</strong>.
+          ⚠️ <strong>Important:</strong> Firebase has two separate database products —
+          make sure you choose <strong>Firestore</strong>, not "Realtime Database".
+          Firestore and Realtime Database use completely different rules syntax;
+          if your rules editor shows JSON starting with <code style="color:#79c0ff">{"rules": ...}</code>
+          you are in the wrong one.<br><br>
+          Click <strong>Create database</strong>, choose a region, and select either mode.
+          Once created, open the <strong>Rules</strong> tab. Click inside the editor,
+          select all (<strong>Ctrl+A</strong> / <strong>Cmd+A</strong>), delete, then use
+          the <strong>Copy</strong> button below and paste:
+        </div>
+        <div class="code-wrap">
+          <div class="setup-code" id="firestore-rules">rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /users/{userId}/{document=**} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+  }
+}</div>
+          <button class="copy-btn" onclick="copyCode('firestore-rules', this)">Copy</button>
+        </div>
+        <div class="setup-step-desc">Click <strong>Publish</strong> to save.</div>
+      </div>
+    </div>
+
+    <div class="setup-step">
+      <div class="setup-num">4</div>
+      <div class="setup-step-body">
+        <div class="setup-step-title">Enable Storage &amp; configure CORS</div>
+        <div class="setup-step-desc">
+          In the sidebar go to <strong>Databases &amp; Storage → Storage</strong>.
+          Click <strong>Get started</strong> and follow the wizard to create your bucket.
+        </div>
+
+        <div class="setup-subheading">Storage Rules</div>
+        <div class="setup-step-desc">
+          Open the <strong>Rules</strong> tab. Click inside the editor, press
+          <strong>Ctrl+A</strong> / <strong>Cmd+A</strong> to select all, delete, then paste:
+        </div>
+        <div class="code-wrap">
+          <div class="setup-code" id="storage-rules">rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /users/{userId}/{allPaths=**} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+  }
+}</div>
+          <button class="copy-btn" onclick="copyCode('storage-rules', this)">Copy</button>
+        </div>
+        <div class="setup-step-desc">Click <strong>Publish</strong> to save.</div>
+
+        <div class="setup-subheading">CORS Configuration</div>
+        <div class="setup-step-desc">
+          CORS lets the AI models read your uploaded videos. You'll configure it using
+          <strong>Google Cloud Shell</strong> — a free terminal in your browser, nothing to install.
+        </div>
+
+        <div class="setup-substep">
+          <div class="setup-step-desc"><strong>1. Open Cloud Shell</strong></div>
+          <div class="setup-step-desc">
+            Go to <a class="setup-link" href="https://shell.cloud.google.com" target="_blank">shell.cloud.google.com</a>
+            and sign in with the same Google account as your Firebase project.
+            Click <strong>Continue</strong> when prompted to authorize it.
+          </div>
+        </div>
+
+        <div class="setup-substep">
+          <div class="setup-step-desc"><strong>2. Select your project</strong></div>
+          <div class="setup-step-desc">
+            Your Project ID is shown in Firebase → ⚙ Project Settings under "Project ID". Run:
+          </div>
+          <div class="setup-code">gcloud config set project YOUR_PROJECT_ID</div>
+        </div>
+
+        <div class="setup-substep">
+          <div class="setup-step-desc"><strong>3. Create the CORS file</strong></div>
+          <div class="code-wrap">
+            <div class="setup-code" id="cors-create">echo '[{"origin":["*"],"method":["GET"],"maxAgeSeconds":3600}]' > cors.json</div>
+            <button class="copy-btn" onclick="copyCode('cors-create', this)">Copy</button>
+          </div>
+        </div>
+
+        <div class="setup-substep">
+          <div class="setup-step-desc"><strong>4. Apply it to your bucket</strong></div>
+          <div class="setup-step-desc">
+            Your bucket name is shown at the top of <strong>Databases &amp; Storage → Storage</strong>
+            (e.g. <code style="color:#79c0ff">your-project.firebasestorage.app</code>). Run:
+          </div>
+          <div class="code-wrap">
+            <div class="setup-code" id="cors-apply">gsutil cors set cors.json gs://YOUR_BUCKET_NAME</div>
+            <button class="copy-btn" onclick="copyCode('cors-apply', this)">Copy</button>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <div class="setup-step">
+      <div class="setup-num">5</div>
+      <div class="setup-step-body">
+        <div class="setup-step-title">Get your config and paste it into this file</div>
+        <div class="setup-step-desc">
+          Click the <strong>⚙ gear icon</strong> next to "Project Overview" → <strong>Project settings</strong>.
+          Scroll down to <strong>Your apps</strong> — if you haven't added a web app yet, click the
+          <strong>&lt;/&gt;</strong> (Web) icon to register one. Then select your web app,
+          find the <strong>SDK setup and configuration</strong> section, choose <strong>Config</strong>,
+          and copy the object. Open <strong>tennis-analyzer.html</strong> in a text editor and replace
+          the placeholder <code style="color:#79c0ff">FIREBASE_CONFIG</code> at the top of the script:
+        </div>
+        <div class="setup-code">const FIREBASE_CONFIG = {
+  apiKey:            "AIzaSy...",
+  authDomain:        "your-project.firebaseapp.com",
+  projectId:         "your-project",
+  storageBucket:     "your-project.firebasestorage.app",
+  messagingSenderId: "1234567890",
+  appId:             "1:123:web:abc",
+};</div>
+      </div>
+    </div>
+
+    <div class="setup-ready-note">Save the file, then refresh this page — the login screen will appear.</div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════
+     AUTH SCREEN
+═══════════════════════════════════════════════ -->
+<div id="auth-screen" class="screen">
+  <div class="auth-card">
+    <div class="auth-logo">🎾 Tennis<span>Analyzer</span></div>
+    <div class="auth-tagline">AI-powered stroke coaching</div>
+    <div class="auth-form-title" id="auth-title">Sign in to your account</div>
+
+    <input type="email"    id="auth-email"   class="auth-input" placeholder="Email address"    autocomplete="email">
+    <input type="password" id="auth-password" class="auth-input" placeholder="Password"         autocomplete="current-password">
+    <input type="password" id="auth-confirm"  class="auth-input" placeholder="Confirm password" autocomplete="new-password" style="display:none">
+
+    <div id="auth-error" class="auth-error"></div>
+    <button id="auth-submit" class="auth-btn">Sign In</button>
+    <button id="auth-reset" class="auth-reset-btn">Forgot password?</button>
+
+    <div class="auth-footer">
+      <span id="auth-footer-text">Don't have an account?</span>
+      <button id="auth-toggle" class="auth-link-btn">Create account</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════
+     MAIN APP
+═══════════════════════════════════════════════ -->
+<div id="main-app">
+  <!-- Header -->
+  <header id="app-header">
+    <div class="logo">
+      <div class="logo-icon">🎾</div>
+      Tennis<span class="logo-accent">Analyzer</span>
+    </div>
+    <div class="header-sep"></div>
+    <span class="header-tagline">AI stroke coaching</span>
+    <div id="model-status-badge">
+      <div class="status-dot" id="status-dot"></div>
+      <span id="status-text">Loading models…</span>
+    </div>
+    <div id="user-badge">
+      <button id="handedness-btn" onclick="toggleHandedness()" title="Switch between right-handed and left-handed">✋ Right-handed</button>
+      <span id="user-email-label"></span>
+      <button id="logout-btn">Sign out</button>
+    </div>
+  </header>
+
+  <div id="app-body">
+    <!-- Sidebar -->
+    <nav id="sidebar">
+      <div class="sidebar-hdr">Video Library</div>
+      <div id="clip-list">
+        <div class="clip-empty">
+          <div class="clip-empty-icon">🎬</div>
+          No videos yet.<br>Upload one to start.
+        </div>
+      </div>
+      <button class="sidebar-add-btn" id="sidebar-add-btn">+ Add Video</button>
+    </nav>
+
+    <!-- Main content -->
+    <div id="main-content">
+      <!-- Upload zone -->
+      <div id="upload-area">
+        <div class="drop-zone" id="drop-zone">
+          <div class="dz-icon">🎾</div>
+          <div class="dz-title">Drop a tennis video here</div>
+          <div class="dz-sub">AI detects body position and racquet<br>and gives real-time stroke coaching</div>
+          <div class="dz-or">— or —</div>
+          <button class="dz-btn" id="browse-btn">📁 Browse Files</button>
+          <div class="fmt-tags">
+            <span class="fmt-tag">MP4</span><span class="fmt-tag">MOV</span>
+            <span class="fmt-tag">AVI</span><span class="fmt-tag">WebM</span>
+            <span class="fmt-tag">MKV</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Analyzer -->
+      <div id="analyzer-area">
+        <div id="analysis-row">
+          <!-- Video -->
+          <div id="video-panel">
+            <div id="video-viewport">
+              <video id="video-el" crossorigin="anonymous" playsinline></video>
+              <canvas id="overlay-canvas"></canvas>
+              <div id="video-loading">
+                <div class="spinner"></div>
+                <div class="loading-msg" id="loading-msg">Loading…</div>
+              </div>
+            </div>
+            <div id="controls-bar">
+              <div id="scrub-track">
+                <div id="scrub-fill"></div>
+                <div id="scrub-thumb"></div>
+              </div>
+              <div class="ctrl-row">
+                <button class="ctrl-btn" id="btn-rw10" title="Back 10s">⏮</button>
+                <button class="ctrl-btn" id="btn-rw5"  title="Back 5s">⏪</button>
+                <button class="ctrl-btn big" id="btn-pp" title="Play/Pause">▶</button>
+                <button class="ctrl-btn" id="btn-ff5"  title="Fwd 5s">⏩</button>
+                <button class="ctrl-btn" id="btn-ff10" title="Fwd 10s">⏭</button>
+                <span id="time-label">0:00 / 0:00</span>
+                <span class="ctrl-gap"></span>
+                <span id="det-fps"></span>
+                <select id="speed-pick">
+                  <option value="0.25">0.25×</option>
+                  <option value="0.5">0.5×</option>
+                  <option value="1" selected>1×</option>
+                  <option value="1.5">1.5×</option>
+                  <option value="2">2×</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <!-- Feedback -->
+          <div id="feedback-panel">
+            <div class="panel-hdr">
+              <div class="live-dot off" id="live-dot"></div>
+              Stroke Analysis
+              <button id="rescan-btn" onclick="rescanVideo()" title="Clear results and re-scan the full video" disabled>↺ Rescan</button>
+              <label class="sbs-switch" title="Auto-pause after each detected stroke">
+                <input type="checkbox" id="sbs-toggle" onchange="toggleStrokeByStroke()">
+                <span class="sbs-slider"></span>
+                <span class="sbs-label">Auto-pause</span>
+              </label>
+            </div>
+            <div id="feedback-scroll">
+              <div class="fb-waiting">
+                <div class="fb-waiting-icon">🎾</div>
+                Play the video to begin.<br>Feedback appears after each stroke.
+              </div>
+            </div>
+            <div id="undo-bar">
+              <span id="undo-label">Stroke removed</span>
+              <button onclick="undoDeleteStroke()">↩ Undo</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div><!-- /main-content -->
+  </div><!-- /app-body -->
+</div><!-- /main-app -->
+
+<input type="file" id="file-input" accept="video/*" multiple style="display:none">
+<video id="scan-el" crossorigin="anonymous" playsinline muted
+  style="position:fixed;left:-9999px;top:0;width:1px;height:1px;opacity:0;pointer-events:none;"></video>
+
+<script>
+'use strict';
+
+// ════════════════════════════════════════════════════════════
+//  SETUP SCREEN — copy button
+//  Rules are hardcoded as JS strings to avoid any HTML
+//  rendering or textContent whitespace issues.
+// ════════════════════════════════════════════════════════════
+const SETUP_RULES = {
+  'firestore-rules': [
+    "rules_version = '2';",
+    "service cloud.firestore {",
+    "  match /databases/{database}/documents {",
+    "    match /users/{userId}/{document=**} {",
+    "      allow read, write: if request.auth != null && request.auth.uid == userId;",
+    "    }",
+    "  }",
+    "}"
+  ].join('\n'),
+
+  'storage-rules': [
+    "rules_version = '2';",
+    "service firebase.storage {",
+    "  match /b/{bucket}/o {",
+    "    match /users/{userId}/{allPaths=**} {",
+    "      allow read, write: if request.auth != null && request.auth.uid == userId;",
+    "    }",
+    "  }",
+    "}"
+  ].join('\n'),
+
+  'cors-create': `echo '[{"origin":["*"],"method":["GET"],"maxAgeSeconds":3600}]' > cors.json`,
+  'cors-apply':  `gsutil cors set cors.json gs://YOUR_BUCKET_NAME`
+};
+
+function copyCode(id, btn) {
+  // Use hardcoded string; fall back to textContent as last resort
+  const text = SETUP_RULES[id] || document.getElementById(id).textContent.trim();
+
+  const done = () => {
+    btn.textContent = 'Copied!';
+    btn.classList.add('copied');
+    setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 2000);
+  };
+  const fail = () => {
+    btn.textContent = 'Failed';
+    setTimeout(() => { btn.textContent = 'Copy'; }, 2000);
+  };
+
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(done).catch(() => legacyCopy(text, done, fail));
+  } else {
+    legacyCopy(text, done, fail);
+  }
+}
+
+function legacyCopy(text, done, fail) {
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.cssText = 'position:fixed;top:0;left:0;opacity:0;pointer-events:none';
+  document.body.appendChild(ta);
+  ta.focus();
+  ta.select();
+  try { document.execCommand('copy') ? done() : fail(); }
+  catch (e) { fail(); }
+  document.body.removeChild(ta);
+}
+
+// ════════════════════════════════════════════════════════════
+//  FIREBASE CONFIG  ← Replace with your project's config
+//  Get it from: Firebase Console → Project Settings → Your apps → Web
+// ════════════════════════════════════════════════════════════
+const FIREBASE_CONFIG= {
+    apiKey: "AIzaSyBEJHt7yyTUVUWFDdvxy96hPMBmLbSUxCk",
+    authDomain: "tennis-stroke-analyzer.firebaseapp.com",
+    databaseURL: "https://tennis-stroke-analyzer-default-rtdb.firebaseio.com",
+    projectId: "tennis-stroke-analyzer",
+    storageBucket: "tennis-stroke-analyzer.firebasestorage.app",
+    messagingSenderId: "1014468885924",
+    appId: "1:1014468885924:web:58c84a54d6e0bb9ad75531",
+    measurementId: "G-9RCYSCP2VZ"
+  };
+const CONFIG_READY = FIREBASE_CONFIG.apiKey !== "YOUR_API_KEY";
+
+// Bump this whenever the scan/classification logic changes so stale cached
+// results are automatically discarded and a fresh scan runs.
+const SCAN_VERSION = 2;
+
+// ════════════════════════════════════════════════════════════
+//  DOM REFS
+// ════════════════════════════════════════════════════════════
+const videoEl   = document.getElementById('video-el');
+const scanEl    = document.getElementById('scan-el');
+const canvas    = document.getElementById('overlay-canvas');
+const ctx       = canvas.getContext('2d');
+const fileInput = document.getElementById('file-input');
+
+// ════════════════════════════════════════════════════════════
+//  APP STATE
+// ════════════════════════════════════════════════════════════
+const app = {
+  clips:         [],   // {id, name, size, url, storagePath}
+  uploads:       [],   // {id, name, progress, error}
+  activeClipId:  null,
+  poseModel:     null,
+  cocoModel:     null,
+  modelsReady:   false,
+  landmarks:     null,
+  racquetBox:    null,
+  detecting:     false,
+  rafId:         null,
+  frameCount:    0,
+  detFrames:     0,
+  lastFpsUpdate: performance.now(),
+  scanComplete:    false, // true once a scan has finished (cached or fresh) — live detector won't add new markers after this
+  scanning:        false, // true while auto-scan is running
+  scanSending:     false, // true while a scan-frame poseModel.send is in-flight
+  scanPoses:       0,     // diagnostic: poses detected during current scan
+  scanGeneration:      0,     // incremented on every new scan; old coroutines bail when theirs differs
+  strokeByStrokeMode:  false,
+  sbsPauseAtVT:        null,
+  lastPausedMarkerVT:  -Infinity,
+  lastLandmarkVT:      -Infinity, // last video time a pose was detected (live path)
+  lastNoBodyWarnVT:    -Infinity, // last video time we showed the no-body warning
+  // Canvas sync cache
+  canvasL: -1, canvasT: -1, canvasW: -1, canvasH: -1,
+};
+
+// Separate stroke-detection state used only during the background scan
+const scan = {
+  prevPos:      null,
+  prevVT:       0,
+  active:       false,
+  startVT:      0,
+  buffer:       [],
+  lastStrokeVT: -999,
+  // Thresholds are lower than the live detector because scan frames are 0.2s apart.
+  // Live detector frames are ~0.033s apart at 30fps; the same physical wrist speed
+  // produces a value ~6× smaller when divided by 0.2s instead of 0.033s.
+  SPEED_START:  0.25,
+  SPEED_END:    0.20, // high enough to match real post-stroke deceleration at 0.2s intervals
+  MIN_FRAMES:   2,
+  COOLDOWN:     1.5,
+  maxSpeed:          0,
+  pendingServeCheck: null,
+  wristHistory:      [], // [{vt, x, midX}] rolling 2 s window for prep-start detection
+};
+
+// Pose landmark indices
+const LM = {
+  NOSE: 0,
+  L_SHOULDER: 11, R_SHOULDER: 12,
+  L_ELBOW: 13,    R_ELBOW: 14,
+  L_WRIST: 15,    R_WRIST: 16,
+  L_HIP: 23,      R_HIP: 24,
+  L_KNEE: 25,     R_KNEE: 26,
+  L_ANKLE: 27,    R_ANKLE: 28,
+};
+
+const SKELETON_EDGES = [
+  [11,12],[11,13],[13,15],[12,14],[14,16],
+  [11,23],[12,24],[23,24],
+  [23,25],[25,27],[24,26],[26,28],
+  [0,11],[0,12],
+];
+
+// ════════════════════════════════════════════════════════════
+//  STROKE DETECTOR
+// ════════════════════════════════════════════════════════════
+const stroke = {
+  prevPos:       null,
+  prevVT:        0,       // video time at last sample
+  active:        false,
+  startVT:       0,       // video time when current stroke began
+  buffer:        [],      // metrics snapshots during stroke
+  frozenResult:          null,    // {metrics, cards, score} — stays until next stroke
+  lastDetectedStartVT:   null,   // startVT of the most recently completed live stroke
+  markers:            [],   // [{startTime, score}] — one per completed stroke
+  deletedTimes:       [],   // startTimes of user-deleted strokes — blocks live re-detection
+  lastStrokeVT:       -999, // video time when last stroke ended
+  pendingServeCheck:  null,
+  wristHistory:       [], // [{vt, x, midX}] rolling 2 s window for prep-start detection
+  SPEED_START:   1.2,     // normalized units/sec (in video-time) to start stroke
+  SPEED_END:     0.35,    // drop below this to end stroke
+  MIN_FRAMES:    4,       // min frames before stroke can be declared
+  COOLDOWN:      1.5,     // min seconds between strokes (prevents double-fire)
+};
+
+// ── Body-relative speed normalization ────────────────────────────────────
+// Express wrist speed in units relative to the player's shoulder width rather
+// than raw normalized-frame units. This keeps stroke detection consistent when
+// the player is at the edge of the frame (partly cropped → smaller apparent
+// motion AND smaller shoulder width, so the ratio stays constant).
+// REFERENCE_SHOULDER_W is the "typical" shoulder width in normalized coords
+// for a player filmed at a normal tennis broadcast distance.
+const REFERENCE_SHOULDER_W = 0.18;
+
+function bodyRelativeSpeed(dx, dy, dt, lms) {
+  const ls = lms[LM.L_SHOULDER], rs = lms[LM.R_SHOULDER];
+  const sw = (ls?.visibility > 0.3 && rs?.visibility > 0.3)
+    ? Math.abs(rs.x - ls.x) : null;
+  // Only scale when shoulder width is reliable and meaningfully different from reference
+  const scale = (sw && sw > 0.04) ? REFERENCE_SHOULDER_W / sw : 1;
+  return Math.sqrt(dx * dx + dy * dy) / dt * scale;
+}
+
+// Find the best stroke preparation start time from the wrist position history.
+// Strategy: look for the frame closest to the shoulder midpoint (the neutral /
+// ready position) within the allowed lookback window. The wrist drifts away
+// from centre as the player begins their preparation, so the minimum-distance
+// frame is the last moment the arm was at rest before the stroke started.
+function findPrepStart(history, currentVT, minVT) {
+  let bestVT = null, minDist = Infinity;
+  for (const h of history) {
+    if (h.vt < minVT || h.vt > currentVT) continue;
+    const d = Math.abs(h.x - h.midX);
+    if (d < minDist) { minDist = d; bestVT = h.vt; }
+  }
+  return bestVT;
+}
+
+function resetStrokeDetector() {
+  stroke.prevPos   = null;
+  stroke.prevVT    = 0;
+  stroke.active    = false;
+  stroke.buffer    = [];
+  // Note: markers and lastStrokeVT are preserved across seeks
+}
+
+function renderStrokeMarkers() {
+  const track = document.getElementById('scrub-track');
+  track.querySelectorAll('.stroke-marker').forEach(m => m.remove());
+  if (!videoEl.duration) return;
+  stroke.markers.forEach((marker, i) => {
+    const { startTime, score, type } = marker;
+    const pct     = (startTime / videoEl.duration) * 100;
+    const bodyVis = marker.metrics?.bodyVisibility ?? 1;
+    const color   = bodyVis < 0.45 ? '#484f58'  // grey = out of frame
+      : score === null ? '#8b949e'
+      : score >= 70 ? '#3fb950' : score >= 45 ? '#d29922' : '#f85149';
+    const el    = document.createElement('div');
+    el.className = 'stroke-marker';
+    el.style.left       = pct + '%';
+    el.style.background = color;
+    const typeStr = type ? `${type.type} · ` : '';
+    el.title = bodyVis < 0.15
+      ? `Stroke ${i + 1}: no body detected — player outside frame (click to jump)`
+      : bodyVis < 0.45
+      ? `Stroke ${i + 1}: player partially out of frame (click to jump)`
+      : `Stroke ${i + 1}: ${typeStr}Score ${score !== null ? score : '?'} (click to jump)`;
+    el.addEventListener('click', e => {
+      e.stopPropagation();
+      videoEl.currentTime = startTime;
+      showMarkerFeedback(marker, i);
+    });
+    track.appendChild(el);
+  });
+}
+
+// ════════════════════════════════════════════════════════════
+//  BACKGROUND SCAN
+// ════════════════════════════════════════════════════════════
+function tryStartScan() {
+  if (!app.modelsReady || !videoEl.duration || app.scanning) return;
+  const clip = app.clips.find(c => c.id === app.activeClipId);
+  if (loadCachedScan(clip)) return; // cached results found — skip scan
+  startScan();
+}
+
+async function startScan() {
+  if (!app.modelsReady || !videoEl.duration || app.scanning) return;
+
+  // Each scan gets a unique generation number. Every await below checks that this
+  // scan is still the active one; if a newer scan has started (video switch, rescan)
+  // the old coroutine bails immediately without touching any shared state.
+  const myGen = ++app.scanGeneration;
+  const bail  = () => app.scanGeneration !== myGen;
+
+  app.scanning      = true;
+  stroke.markers    = [];
+  stroke.frozenResult = null;
+  scan.prevPos      = null;
+  scan.prevVT       = 0;
+  scan.active       = false;
+  scan.lastStrokeVT = -999;
+  scan.maxSpeed     = 0;
+
+  renderStrokeMarkers();
+  showScanProgressUI();
+
+  scanEl.src = videoEl.src;
+  scanEl.load();
+  await Promise.race([
+    new Promise(r => scanEl.addEventListener('loadedmetadata', r, { once: true })),
+    new Promise(r => setTimeout(r, 6000)),
+  ]);
+  if (bail()) return;
+
+  const sw = scanEl.videoWidth  || videoEl.videoWidth  || 640;
+  const sh = scanEl.videoHeight || videoEl.videoHeight || 360;
+  const scanCanvas  = document.createElement('canvas');
+  scanCanvas.width  = sw;
+  scanCanvas.height = sh;
+  const scanCtx2d   = scanCanvas.getContext('2d');
+
+  const STEP     = 0.2;
+  const duration = videoEl.duration;
+
+  for (let t = 0; t <= duration; t += STEP) {
+    if (bail() || !app.scanning) break;
+
+    scanEl.currentTime = t;
+    await Promise.race([
+      new Promise(r => scanEl.addEventListener('seeked', r, { once: true })),
+      new Promise(r => setTimeout(r, 2000)),
+    ]);
+    if (bail() || !app.scanning) break;
+
+    if (scanEl.readyState < 2) {
+      let pollDone = false;
+      await Promise.race([
+        new Promise(r => {
+          const poll = () => {
+            if (pollDone) return; // timeout already fired — stop immediately
+            if (scanEl.readyState >= 2) { pollDone = true; r(); }
+            else setTimeout(poll, 30);
+          };
+          poll();
+        }),
+        new Promise(r => setTimeout(() => { pollDone = true; r(); }, 1000)),
+      ]);
+    }
+    if (bail() || !app.scanning) break;
+
+    scanCtx2d.drawImage(scanEl, 0, 0, sw, sh);
+
+    try {
+      app.scanSending = true;
+      app.detecting   = true;
+      await Promise.race([
+        app.poseModel.send({ image: scanCanvas }),
+        new Promise(r => setTimeout(r, 1500)),
+      ]);
+    } catch(e) {}
+    app.detecting   = false;
+    app.scanSending = false;
+
+    if (bail()) return; // don't touch UI or global state if superseded
+    updateScanProgressUI();
+  }
+
+  // If the stroke was still active when the clip ended (common in short clips where
+  // the follow-through reaches the last frame), declare it now rather than discard it.
+  if (scan.active && scan.buffer.length >= 1) {
+    const avg  = avgMetrics(scan.buffer);
+    const type = classifyStrokeType(scan.buffer, true);
+    stroke.markers.push({ startTime: scan.startVT, endTime: scanEl.currentTime, score: scoreStroke(avg), type, metrics: avg, cards: generateFeedback(avg) });
+    scan.active = false;
+    scan.buffer = [];
+  }
+
+  if (bail()) return; // superseded — leave cleanup to the newer scan
+
+  // If app.scanning is still true here the loop ran to completion naturally.
+  // If it's false the user pressed Skip — don't mark complete so live detection
+  // can still add markers as the video plays.
+  const completedFully = app.scanning;
+  app.scanning     = false;
+  app.scanSending  = false;
+  app.detecting    = false;
+  app.scanComplete = completedFully;
+  scanEl.src       = '';
+  renderStrokeMarkers();
+  showScanCompleteUI();
+
+  await saveScanResults();
+
+  if (!videoEl.paused) startLoop(); else detectFrame();
+}
+
+function stopScan() {
+  app.scanning = false; // scan loop checks this flag and exits on next iteration
+  ctx.clearRect(0, 0, canvas.width, canvas.height); // remove stale scan overlay immediately
+}
+
+// ════════════════════════════════════════════════════════════
+//  SCAN RESULT PERSISTENCE
+// ════════════════════════════════════════════════════════════
+async function saveScanResults() {
+  const userId = fbAuth.currentUser?.uid;
+  const clipId = app.activeClipId;
+  if (!userId || !clipId) return; // always save, even empty — persists deletions
+  try {
+    await fbDb.collection('users').doc(userId)
+      .collection('videos').doc(clipId)
+      .update({
+        scanResults: stroke.markers.map(m => ({
+          startTime: m.startTime,
+          endTime:   m.endTime  ?? null,
+          score:     m.score,
+          type:      m.type  || null,
+          // Strip underscore classification keys — display keys only
+          metrics:   m.metrics ? Object.fromEntries(Object.entries(m.metrics).filter(([k]) => !k.startsWith('_'))) : null,
+          cards:     m.cards  || null,
+        })),
+        deletedStartTimes: stroke.deletedTimes,
+        scanVersion: SCAN_VERSION,
+        scannedAt: firebase.firestore.FieldValue.serverTimestamp(),
+      });
+  } catch(e) {
+    console.warn('[TA] Could not save scan results:', e);
+  }
+}
+
+function loadCachedScan(clip) {
+  if (!clip?.scanResults?.length) return false;
+  // Reject stale cache from older classification logic
+  if ((clip.scanVersion ?? 0) < SCAN_VERSION) return false;
+  app.scanComplete = true;
+  stroke.markers = clip.scanResults.map(m => ({
+    startTime: m.startTime,
+    endTime:   m.endTime  ?? null,
+    score:     m.score,
+    type:      m.type    || null,
+    metrics:   m.metrics || null,
+    cards:     m.cards   || null,
+  }));
+  renderStrokeMarkers();
+  showCachedScanUI(stroke.markers.length);
+  return true;
+}
+
+function showCachedScanUI(n) {
+  if (n > 0 && stroke.markers[0].metrics) {
+    showMarkerFeedback(stroke.markers[0], 0);
+    return;
+  }
+  document.getElementById('feedback-scroll').innerHTML = `
+    <div class="fb-waiting">
+      <div class="fb-waiting-icon" style="font-size:28px">✅</div>
+      <div style="font-size:13px;font-weight:600;color:#3fb950;margin-bottom:6px">Scan results loaded</div>
+      <div style="font-size:12px;color:#8b949e;line-height:1.6;margin-bottom:14px">
+        <strong style="color:#c9d1d9">${n} stroke${n !== 1 ? 's' : ''}</strong> from a previous scan.<br>
+        Click a marker or play through the video for coaching feedback.
+      </div>
+    </div>`;
+}
+
+async function rescanVideo() {
+  if (!app.activeClipId) return;
+  const userId = fbAuth.currentUser?.uid;
+  const clipId = app.activeClipId;
+  if (userId && clipId) {
+    try {
+      await fbDb.collection('users').doc(userId)
+        .collection('videos').doc(clipId)
+        .update({ scanResults: firebase.firestore.FieldValue.delete(), scannedAt: firebase.firestore.FieldValue.delete() });
+    } catch(e) { /* ignore */ }
+  }
+  stroke.markers             = [];
+  stroke.deletedTimes        = [];
+  stroke.frozenResult        = null;
+  stroke.pendingServeCheck   = null;
+  stroke.wristHistory        = [];
+  scan.pendingServeCheck     = null;
+  scan.wristHistory          = [];
+  app.scanComplete           = false;
+  stroke.lastStrokeVT    = -999;
+  app.lastPausedMarkerVT = -Infinity;
+  renderStrokeMarkers();
+  startScan();
+}
+
+// Stroke detection used during the scan (separate state from live detector)
+function processScanStroke(lms) {
+  const rW = lms[LM.R_WRIST], lW = lms[LM.L_WRIST];
+  const wrist = (rW?.visibility ?? 0) >= (lW?.visibility ?? 0) ? rW : lW;
+  if (!wrist || wrist.visibility < 0.4) return;
+
+  const vt = scanEl.currentTime;
+
+  // Pending serve check: runs every frame even during cooldown, so we don't miss
+  // the wrist-above-shoulder contact that happens after the slow prep motion ends.
+  // Check BOTH wrists — at contact MediaPipe sometimes favours the non-hitting arm.
+  if (scan.pendingServeCheck) {
+    const { markerIdx, expiresVT } = scan.pendingServeCheck;
+    const shoulderY   = ((lms[LM.L_SHOULDER]?.y ?? 0.35) + (lms[LM.R_SHOULDER]?.y ?? 0.35)) / 2;
+    const minWristY   = Math.min(rW?.y ?? 1, lW?.y ?? 1);
+    if (minWristY < shoulderY - 0.06) {
+      if (stroke.markers[markerIdx]) stroke.markers[markerIdx].type = { type: 'Serve / Overhead', icon: '🎯' };
+      scan.pendingServeCheck = null;
+      renderStrokeMarkers();
+    } else if (vt >= expiresVT) {
+      scan.pendingServeCheck = null;
+    }
+  }
+
+  if (!scan.active && (vt - scan.lastStrokeVT) < scan.COOLDOWN) {
+    scan.prevPos = { x: wrist.x, y: wrist.y }; scan.prevVT = vt; return;
+  }
+
+  if (scan.prevPos && scan.prevVT !== vt) {
+    const dt = Math.abs(vt - scan.prevVT);
+    if (dt > 0 && dt < 2.5) {
+      const dx = wrist.x - scan.prevPos.x, dy = wrist.y - scan.prevPos.y;
+      const speed = bodyRelativeSpeed(dx, dy, dt, lms);
+      if (speed > scan.maxSpeed) scan.maxSpeed = speed;
+
+      // Maintain rolling wrist history for prep-start detection
+      const scanMidX = ((lms[LM.L_SHOULDER]?.x ?? 0.4) + (lms[LM.R_SHOULDER]?.x ?? 0.6)) / 2;
+      scan.wristHistory.push({ vt, x: wrist.x, midX: scanMidX });
+      while (scan.wristHistory.length && vt - scan.wristHistory[0].vt > 2.0)
+        scan.wristHistory.shift();
+
+      if (!scan.active && speed > scan.SPEED_START) {
+        scan.active = true;
+        const minVT  = scan.lastStrokeVT + scan.COOLDOWN;
+        const prepVT = findPrepStart(scan.wristHistory, vt, minVT);
+        scan.startVT = prepVT ?? Math.max(minVT, vt - 1.0);
+        scan.buffer  = [];
+      }
+      if (scan.active) {
+        const m = computeMetrics(lms);
+        // Store wrist trajectory data for stroke type classification
+        const aw = (rW?.visibility ?? 0) >= (lW?.visibility ?? 0) ? rW : lW;
+        m._wx = aw?.x ?? 0.5; m._wy = aw?.y ?? 0.5;
+        m._rightDom  = (rW?.visibility ?? 0) >= (lW?.visibility ?? 0);
+        m._hipX      = ((lms[LM.L_HIP]?.x ?? 0.4) + (lms[LM.R_HIP]?.x ?? 0.6)) / 2;
+        m._shoulderY = ((lms[LM.L_SHOULDER]?.y ?? 0.35) + (lms[LM.R_SHOULDER]?.y ?? 0.35)) / 2;
+        m._rwx = rW?.x ?? 0.5; m._rwy = rW?.y ?? 0.5;
+        m._lwx = lW?.x ?? 0.5; m._lwy = lW?.y ?? 0.5;
+        m._lsX = lms[LM.L_SHOULDER]?.x ?? 0.4;
+        m._rsX = lms[LM.R_SHOULDER]?.x ?? 0.6;
+        scan.buffer.push(m);
+        // End stroke when speed drops AND wrist has traveled enough (cross-body check).
+        // This prevents premature endings during brief deceleration mid-swing.
+        const firstBuf   = scan.buffer[0];
+        const swingTravel = firstBuf
+          ? Math.sqrt((wrist.x - firstBuf._wx) ** 2 + (wrist.y - firstBuf._wy) ** 2)
+          : 1;
+        const longEnough = scan.buffer.length >= 8; // ~1.6 s fallback
+        if (speed < scan.SPEED_END && scan.buffer.length >= scan.MIN_FRAMES && (swingTravel > 0.08 || longEnough)) {
+          const avg  = avgMetrics(scan.buffer);
+          const type = classifyStrokeType(scan.buffer, true);
+          stroke.markers.push({ startTime: scan.startVT, endTime: vt, score: scoreStroke(avg), type, metrics: avg, cards: generateFeedback(avg) });
+          // Watch the next 2.5 s for a wrist-above-shoulder position — if found, reclassify as serve
+          scan.pendingServeCheck = { markerIdx: stroke.markers.length - 1, expiresVT: vt + 2.5 };
+          scan.lastStrokeVT = vt;
+          scan.active = false; scan.buffer = [];
+          renderStrokeMarkers();
+          updateScanProgressUI();
+        }
+      }
+    }
+  }
+  scan.prevPos = { x: wrist.x, y: wrist.y };
+  scan.prevVT  = vt;
+}
+
+// Scan UI helpers
+function showScanProgressUI() {
+  app.scanPoses = 0;
+  document.getElementById('feedback-scroll').innerHTML = `
+    <div class="fb-waiting">
+      <div class="fb-waiting-icon" style="font-size:28px">🔍</div>
+      <div style="font-size:13px;font-weight:600;color:#c9d1d9;margin-bottom:6px">Scanning video for strokes…</div>
+      <div style="font-size:12px;color:#8b949e;margin-bottom:14px;line-height:1.6">
+        Running in the background — feel free to watch any part of the video.<br>
+        The overlay and live analysis will appear once the scan is complete.
+      </div>
+      <div style="background:#21262d;border-radius:4px;overflow:hidden;height:5px;margin-bottom:8px">
+        <div id="scan-bar" style="height:100%;background:#388bfd;width:0%;transition:width 0.3s;border-radius:4px"></div>
+      </div>
+      <div id="scan-pct" style="font-size:12px;color:#8b949e;margin-bottom:6px">0%</div>
+      <div style="font-size:12px;color:#484f58">Poses: <span id="scan-poses">0</span> &nbsp;·&nbsp; Strokes: <span id="scan-count">0</span> &nbsp;·&nbsp; Max speed: <span id="scan-maxspeed">0.000</span></div>
+      <div style="margin-top:14px">
+        <button onclick="stopScan()" style="background:none;border:1px solid #30363d;border-radius:5px;color:#8b949e;font-size:11px;padding:4px 12px;cursor:pointer">Skip scan</button>
+      </div>
+    </div>`;
+}
+
+function updateScanProgressUI() {
+  const bar   = document.getElementById('scan-bar');
+  const pct   = document.getElementById('scan-pct');
+  const count = document.getElementById('scan-count');
+  if (!bar || !videoEl.duration) return;
+  const p = Math.round((scanEl.currentTime / videoEl.duration) * 100);
+  bar.style.width    = p + '%';
+  if (pct)   pct.textContent   = p + '%';
+  if (count) count.textContent = stroke.markers.length;
+  const posesEl = document.getElementById('scan-poses');
+  if (posesEl) posesEl.textContent = app.scanPoses;
+  const speedEl = document.getElementById('scan-maxspeed');
+  if (speedEl) speedEl.textContent = scan.maxSpeed.toFixed(3);
+}
+
+function showScanCompleteUI() {
+  const n = stroke.markers.length;
+  // Show first stroke's analysis immediately rather than a plain text message
+  if (n > 0 && stroke.markers[0].metrics) {
+    showMarkerFeedback(stroke.markers[0], 0);
+    return;
+  }
+  document.getElementById('feedback-scroll').innerHTML = `
+    <div class="fb-waiting">
+      <div class="fb-waiting-icon" style="font-size:28px">✅</div>
+      <div style="font-size:13px;font-weight:600;color:#3fb950;margin-bottom:6px">Scan complete</div>
+      <div style="font-size:12px;color:#8b949e;line-height:1.6">
+        ${n === 0
+          ? 'No strokes detected. Try playing the video — feedback appears in real time.'
+          : `<strong style="color:#c9d1d9">${n} stroke${n !== 1 ? 's' : ''}</strong> detected.<br>
+             Click a marker or play through the video for coaching feedback.`}
+      </div>
+    </div>`;
+}
+
+// ════════════════════════════════════════════════════════════
+//  STROKE TYPE CLASSIFICATION
+//  isScan=true  → buffer sampled at 0.2 s intervals (sparse)
+//  isScan=false → buffer sampled at ~30 fps (dense)
+// ════════════════════════════════════════════════════════════
+function classifyStrokeType(buffer, isScan = false) {
+  const frames = buffer.filter(f => f._wx !== undefined);
+  if (frames.length < 2) return null;
+
+  const xs = frames.map(f => f._wx);
+  const ys = frames.map(f => f._wy);
+  const mid = frames[Math.floor(frames.length / 2)];
+
+  const shoulderY = mid._shoulderY ?? 0.35;
+
+  const xRange  = Math.max(...xs) - Math.min(...xs);
+  const yRange  = Math.max(...ys) - Math.min(...ys);
+  const yTravel = ys[ys.length - 1] - ys[0];
+
+  // ── Forehand vs Backhand ──────────────────────────────────────────────────
+  // Use the average of the FIRST THIRD of buffer frames (setup/takeback).
+  // A few frames are averaged rather than just frames[0] to smooth out
+  // individual visibility glitches. If a wrist landmark has low visibility
+  // MediaPipe defaults it to x=0.5, biasing toward forehand — averaging
+  // across multiple frames reduces that noise.
+  //
+  // Reference line: shoulder midpoint, which travels with the player so it
+  // stays accurate regardless of where they're standing in the frame.
+  //
+  // Right-handed: right wrist left of shoulder midpoint at setup → backhand.
+  // Left-handed:  left wrist right of shoulder midpoint at setup → backhand.
+  const isRightHanded = playerHandedness !== 'left';
+  const setupN        = Math.max(1, Math.ceil(frames.length / 3));
+  const setupFrames   = frames.slice(0, setupN);
+  const avgLsX        = frames.reduce((s, f) => s + (f._lsX ?? 0.4), 0) / frames.length;
+  const avgRsX        = frames.reduce((s, f) => s + (f._rsX ?? 0.6), 0) / frames.length;
+  const shoulderMidX  = (avgLsX + avgRsX) / 2;
+  const setupWristX   = isRightHanded
+    ? setupFrames.reduce((s, f) => s + (f._rwx ?? 0.5), 0) / setupN
+    : setupFrames.reduce((s, f) => s + (f._lwx ?? 0.5), 0) / setupN;
+  const isForehand    = isRightHanded
+    ? setupWristX > shoulderMidX    // right wrist right of centre → forehand
+    : setupWristX < shoulderMidX;   // left wrist left of centre  → forehand
+  const side = isForehand ? 'Forehand' : 'Backhand';
+
+  // ── 1. SERVE / OVERHEAD — checked first ──────────────────────────────────
+  // Check the minimum Y of BOTH wrists across all frames. At contact MediaPipe
+  // sometimes tracks the non-hitting arm as more visible, so using only the
+  // dominant wrist can miss the above-shoulder position entirely.
+  const minRwY    = Math.min(...frames.map(f => f._rwy ?? 1));
+  const minLwY    = Math.min(...frames.map(f => f._lwy ?? 1));
+  const minWristY = Math.min(minRwY, minLwY);
+  if (minWristY < shoulderY - 0.08)
+    return { type: 'Serve / Overhead', icon: '🎯' };
+
+  // ── 2. VOLLEY ─────────────────────────────────────────────────────────────
+  // Volleys are only classified during live playback (~30 fps). At scan
+  // resolution (0.2 s/frame) a stroke always ends after 2–3 frames regardless
+  // of shot type, so compact range is indistinguishable from a groundstroke —
+  // every stroke would be called a volley. Live detection has enough frames to
+  // distinguish a genuinely brief, compact swing from a full groundstroke.
+  if (!isScan && xRange < 0.11 && yRange < 0.10 && frames.length <= 10)
+    return { type: `${side} Volley`, icon: '⚡' };
+
+  // ── 3. SLICE ──────────────────────────────────────────────────────────────
+  if (yTravel > 0.09 && xRange > 0.04)
+    return { type: `${side} Slice`, icon: '↘' };
+
+  // ── 4. GROUNDSTROKE ───────────────────────────────────────────────────────
+  return { type: side, icon: isForehand ? '→' : '←' };
+}
+
+function processStroke(lms) {
+  const rW = lms[LM.R_WRIST], lW = lms[LM.L_WRIST];
+  const wrist = (rW?.visibility ?? 0) >= (lW?.visibility ?? 0) ? rW : lW;
+  if (!wrist || wrist.visibility < 0.4) return;
+
+  const vt = videoEl.currentTime;
+
+  // Pending serve check — must run before the cooldown guard so it fires during cooldown.
+  // Check BOTH wrists — at contact MediaPipe sometimes favours the non-hitting arm.
+  if (stroke.pendingServeCheck) {
+    const { markerIdx, expiresVT } = stroke.pendingServeCheck;
+    const shoulderY = ((lms[LM.L_SHOULDER]?.y ?? 0.35) + (lms[LM.R_SHOULDER]?.y ?? 0.35)) / 2;
+    const minWristY = Math.min(rW?.y ?? 1, lW?.y ?? 1);
+    if (minWristY < shoulderY - 0.06) {
+      const marker = stroke.markers[markerIdx];
+      if (marker) {
+        marker.type = { type: 'Serve / Overhead', icon: '🎯' };
+        if (stroke.frozenResult && stroke.lastDetectedStartVT === marker.startTime) {
+          stroke.frozenResult.type = marker.type;
+          renderFrozenFeedback();
+        }
+        renderStrokeMarkers();
+      }
+      stroke.pendingServeCheck = null;
+    } else if (vt > expiresVT) {
+      stroke.pendingServeCheck = null;
+    }
+  }
+
+  // Don't start a new stroke during the cooldown window after the last one
+  if (!stroke.active && (vt - stroke.lastStrokeVT) < stroke.COOLDOWN) {
+    stroke.prevPos = { x: wrist.x, y: wrist.y };
+    stroke.prevVT  = vt;
+    return;
+  }
+
+  if (stroke.prevPos && stroke.prevVT !== vt) {
+    const dt = Math.abs(vt - stroke.prevVT);
+    if (dt > 0 && dt < 1.0) {  // ignore big jumps (seek)
+      const dx = wrist.x - stroke.prevPos.x;
+      const dy = wrist.y - stroke.prevPos.y;
+      const speed = bodyRelativeSpeed(dx, dy, dt, lms);
+
+      // Maintain rolling wrist history for prep-start detection
+      const liveMidX = ((lms[LM.L_SHOULDER]?.x ?? 0.4) + (lms[LM.R_SHOULDER]?.x ?? 0.6)) / 2;
+      stroke.wristHistory.push({ vt, x: wrist.x, midX: liveMidX });
+      while (stroke.wristHistory.length && vt - stroke.wristHistory[0].vt > 2.0)
+        stroke.wristHistory.shift();
+
+      if (!stroke.active && speed > stroke.SPEED_START) {
+        stroke.active  = true;
+        const minVT    = stroke.lastStrokeVT + stroke.COOLDOWN;
+        const prepVT   = findPrepStart(stroke.wristHistory, vt, minVT);
+        stroke.startVT = prepVT ?? Math.max(minVT, vt - 1.0);
+        stroke.buffer  = [];
+      }
+
+      if (stroke.active) {
+        const m = computeMetrics(lms);
+        // Augment with wrist trajectory data for stroke type classification
+        const aw = (rW?.visibility ?? 0) >= (lW?.visibility ?? 0) ? rW : lW;
+        m._wx = aw?.x ?? 0.5; m._wy = aw?.y ?? 0.5;
+        m._rightDom  = (rW?.visibility ?? 0) >= (lW?.visibility ?? 0);
+        m._hipX      = ((lms[LM.L_HIP]?.x ?? 0.4) + (lms[LM.R_HIP]?.x ?? 0.6)) / 2;
+        m._shoulderY = ((lms[LM.L_SHOULDER]?.y ?? 0.35) + (lms[LM.R_SHOULDER]?.y ?? 0.35)) / 2;
+        m._rwx = rW?.x ?? 0.5; m._rwy = rW?.y ?? 0.5;
+        m._lwx = lW?.x ?? 0.5; m._lwy = lW?.y ?? 0.5;
+        m._lsX = lms[LM.L_SHOULDER]?.x ?? 0.4;
+        m._rsX = lms[LM.R_SHOULDER]?.x ?? 0.6;
+        stroke.buffer.push(m);
+        // forceEnd is measured from first buffer frame (swing start), not pushed-back startVT
+        const swingStartVT   = stroke.buffer[0] ? vt - (stroke.buffer.length - 1) * (1 / 30) : vt;
+        const forceEnd       = (vt - swingStartVT) > 2.5;
+        const firstBuf       = stroke.buffer[0];
+        const swingTravel    = firstBuf
+          ? Math.sqrt((wrist.x - firstBuf._wx) ** 2 + (wrist.y - firstBuf._wy) ** 2)
+          : 1;
+        const enoughTravel   = swingTravel > 0.08;
+        if (((speed < stroke.SPEED_END && enoughTravel) || forceEnd) && stroke.buffer.length >= stroke.MIN_FRAMES) {
+          const avg   = avgMetrics(stroke.buffer);
+          const score = scoreStroke(avg);
+          const type  = classifyStrokeType(stroke.buffer);
+          // Use the scan marker's pre-computed score so the feedback panel and
+          // marker colour are always the same number. Live playback updates the
+          // type only (dense 30fps frames give better classification accuracy).
+          const nearest = stroke.markers.reduce((best, m) => {
+            const d = Math.abs(m.startTime - stroke.startVT);
+            return (!best || d < Math.abs(best.startTime - stroke.startVT)) ? m : best;
+          }, null);
+          const withinWindow = nearest && Math.abs(nearest.startTime - stroke.startVT) < 2.0;
+          const displayScore = withinWindow && nearest.score !== null ? nearest.score : score;
+
+          stroke.frozenResult = { metrics: avg, cards: generateFeedback(avg), score: displayScore, type };
+          // On a normal end, anchor cooldown to now.
+          // On a force-end, anchor to startVT+0.5 so the cooldown (1.5 s) expires
+          // well before the next real stroke — otherwise strokes that follow within
+          // 4 s of a long-running detection get silently skipped.
+          stroke.lastDetectedStartVT = stroke.startVT;
+          stroke.lastStrokeVT = forceEnd ? stroke.startVT + 0.5 : vt;
+          stroke.active       = false;
+          stroke.buffer       = [];
+          // Watch for wrist-above-shoulder in the next 2.5 s — catches serves where
+          // the prep phase triggered detection before the actual contact
+          const pendingIdx = withinWindow ? stroke.markers.indexOf(nearest)
+            : (!app.scanComplete ? stroke.markers.length - 1 : -1);
+          stroke.pendingServeCheck = pendingIdx >= 0
+            ? { markerIdx: pendingIdx, expiresVT: vt + 2.5 } : null;
+          renderFrozenFeedback();
+
+          // Sync with scan markers: refine type if scan found it, or add a new
+          // marker if the scan missed this stroke entirely.
+          if (withinWindow) {
+            nearest.type    = type;
+            nearest.score   = displayScore;
+            nearest.endTime = vt; // live gives more precise end time than 0.2s scan
+          } else if (!app.scanComplete) {
+            // Scan hasn't finished yet — add genuinely new live-detected strokes.
+            // Once scanComplete, stroke.markers is authoritative: anything not in it
+            // was either never a stroke or was explicitly deleted by the user.
+            const wasDeleted = stroke.deletedTimes.some(t => Math.abs(t - stroke.startVT) < 2.0);
+            if (!wasDeleted) {
+              stroke.markers.push({ startTime: stroke.startVT, endTime: vt, score: displayScore, type, metrics: avg, cards: generateFeedback(avg) });
+              stroke.markers.sort((a, b) => a.startTime - b.startTime);
+            }
+          }
+          renderStrokeMarkers();
+
+          // Auto-pause is now handled by timeupdate scanning marker positions,
+          // so no timeout needed here.
+        }
+      }
+    }
+  }
+  stroke.prevPos = { x: wrist.x, y: wrist.y };
+  stroke.prevVT  = vt;
+}
+
+function avgMetrics(buffer) {
+  const sums = {}, counts = {};
+  for (const m of buffer) {
+    for (const [k, v] of Object.entries(m)) {
+      if (typeof v === 'number') {
+        sums[k]   = (sums[k]   || 0) + v;
+        counts[k] = (counts[k] || 0) + 1;
+      }
+    }
+  }
+  const result = {};
+  for (const k of Object.keys(sums)) result[k] = sums[k] / counts[k];
+  return result;
+}
+
+// ════════════════════════════════════════════════════════════
+//  AI MODEL LOADING
+// ════════════════════════════════════════════════════════════
+async function loadModels() {
+  setStatus('loading', 'Loading pose model…');
+  try {
+    app.poseModel = new Pose({
+      locateFile: f => `https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5.1675469404/${f}`,
+    });
+    app.poseModel.setOptions({
+      modelComplexity: 1, smoothLandmarks: true,
+      enableSegmentation: false,
+      minDetectionConfidence: 0.5, minTrackingConfidence: 0.5,
+    });
+    app.poseModel.onResults(onPoseResults);
+    // Warm up
+    const warm = document.createElement('canvas');
+    warm.width = 64; warm.height = 64;
+    await app.poseModel.send({ image: warm });
+
+    setStatus('loading', 'Loading object detection…');
+    app.cocoModel = await cocoSsd.load({ base: 'lite_mobilenet_v2' });
+
+    app.modelsReady = true;
+    setStatus('ready', 'AI Ready');
+    tryStartScan(); // start scan if video was already loaded before models finished
+  } catch (e) {
+    console.error('[TA] Model load failed:', e);
+    setStatus('error', 'Model error');
+  }
+}
+
+function setStatus(state, text) {
+  const dot  = document.getElementById('status-dot');
+  const span = document.getElementById('status-text');
+  dot.className = 'status-dot' + (state === 'ready' ? ' ready' : state === 'error' ? ' error' : '');
+  span.textContent = text;
+}
+
+// ════════════════════════════════════════════════════════════
+//  FIREBASE INIT
+// ════════════════════════════════════════════════════════════
+let fbAuth, fbDb, fbStorage, unsubVideos = null;
+
+function initFirebase() {
+  firebase.initializeApp(FIREBASE_CONFIG);
+  fbAuth    = firebase.auth();
+  fbDb      = firebase.firestore();
+  fbStorage = firebase.storage();
+
+  fbAuth.onAuthStateChanged(user => {
+    if (user) {
+      document.getElementById('user-email-label').textContent = user.email;
+      showMain();
+      subscribeVideos(user.uid);
+      loadUserSettings(user.uid);
+    } else {
+      if (unsubVideos) { unsubVideos(); unsubVideos = null; }
+      app.clips = []; app.uploads = [];
+      showAuth();
+    }
+  });
+}
+
+// ════════════════════════════════════════════════════════════
+//  USER SETTINGS  (handedness — persisted to Firestore)
+// ════════════════════════════════════════════════════════════
+let playerHandedness = 'right'; // 'right' | 'left'
+
+async function loadUserSettings(userId) {
+  try {
+    const doc = await fbDb.collection('users').doc(userId).get();
+    if (doc.exists && doc.data().handedness) {
+      playerHandedness = doc.data().handedness;
+      updateHandednessBtn();
+    }
+  } catch(e) { console.warn('[TA] Could not load settings:', e); }
+}
+
+async function toggleHandedness() {
+  playerHandedness = playerHandedness === 'right' ? 'left' : 'right';
+  updateHandednessBtn();
+  const userId = fbAuth.currentUser?.uid;
+  if (!userId) return;
+  try {
+    await fbDb.collection('users').doc(userId).set({ handedness: playerHandedness }, { merge: true });
+  } catch(e) { console.warn('[TA] Could not save handedness:', e); }
+}
+
+function updateHandednessBtn() {
+  const btn = document.getElementById('handedness-btn');
+  if (!btn) return;
+  const isRight = playerHandedness === 'right';
+  btn.textContent = isRight ? '✋ Right-handed' : '🤚 Left-handed';
+  btn.classList.toggle('left-handed', !isRight);
+}
+
+// ════════════════════════════════════════════════════════════
+//  AUTH SCREEN
+// ════════════════════════════════════════════════════════════
+let authMode = 'signin'; // 'signin' | 'signup'
+
+document.getElementById('auth-toggle').addEventListener('click', () => {
+  authMode = authMode === 'signin' ? 'signup' : 'signin';
+  const isSignup = authMode === 'signup';
+  document.getElementById('auth-title').textContent      = isSignup ? 'Create your account' : 'Sign in to your account';
+  document.getElementById('auth-submit').textContent     = isSignup ? 'Create Account' : 'Sign In';
+  document.getElementById('auth-toggle').textContent     = isSignup ? 'Sign in instead' : 'Create account';
+  document.getElementById('auth-footer-text').textContent= isSignup ? 'Already have an account?' : 'Don\'t have an account?';
+  document.getElementById('auth-confirm').style.display  = isSignup ? '' : 'none';
+  document.getElementById('auth-reset').style.display    = isSignup ? 'none' : '';
+  document.getElementById('auth-password').autocomplete  = isSignup ? 'new-password' : 'current-password';
+  showAuthError('');
+});
+
+document.getElementById('auth-submit').addEventListener('click', handleAuthSubmit);
+document.getElementById('auth-email').addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('auth-password').focus(); });
+document.getElementById('auth-password').addEventListener('keydown', e => { if (e.key === 'Enter') handleAuthSubmit(); });
+document.getElementById('auth-confirm').addEventListener('keydown', e => { if (e.key === 'Enter') handleAuthSubmit(); });
+
+document.getElementById('auth-reset').addEventListener('click', async () => {
+  const email = document.getElementById('auth-email').value.trim();
+  if (!email) { showAuthError('Enter your email address first.'); return; }
+  try {
+    await fbAuth.sendPasswordResetEmail(email);
+    showAuthError('Reset email sent — check your inbox.', true);
+  } catch (e) { showAuthError(friendlyAuthError(e)); }
+});
+
+async function handleAuthSubmit() {
+  const email = document.getElementById('auth-email').value.trim();
+  const pass  = document.getElementById('auth-password').value;
+  const conf  = document.getElementById('auth-confirm').value;
+  showAuthError('');
+
+  if (!email || !pass) { showAuthError('Please fill in all fields.'); return; }
+  if (authMode === 'signup' && pass !== conf) { showAuthError('Passwords do not match.'); return; }
+  if (authMode === 'signup' && pass.length < 6) { showAuthError('Password must be at least 6 characters.'); return; }
+
+  const btn = document.getElementById('auth-submit');
+  btn.disabled = true;
+  btn.textContent = '…';
+
+  try {
+    if (authMode === 'signup') {
+      await fbAuth.createUserWithEmailAndPassword(email, pass);
+    } else {
+      await fbAuth.signInWithEmailAndPassword(email, pass);
+    }
+    // onAuthStateChanged fires → showMain()
+  } catch (e) {
+    showAuthError(friendlyAuthError(e));
+    btn.disabled = false;
+    btn.textContent = authMode === 'signup' ? 'Create Account' : 'Sign In';
+  }
+}
+
+function showAuthError(msg, isInfo) {
+  const el = document.getElementById('auth-error');
+  el.textContent = msg;
+  el.style.display = msg ? '' : 'none';
+  el.style.color = isInfo ? '#79c0ff' : '#ffa198';
+  el.style.borderColor = isInfo ? 'rgba(88,166,255,0.35)' : 'rgba(248,81,73,0.35)';
+  el.style.background  = isInfo ? 'rgba(88,166,255,0.1)' : 'rgba(248,81,73,0.12)';
+}
+
+function friendlyAuthError(e) {
+  const map = {
+    'auth/user-not-found':    'No account found with that email.',
+    'auth/wrong-password':    'Incorrect password.',
+    'auth/invalid-email':     'Invalid email address.',
+    'auth/email-already-in-use': 'An account with that email already exists.',
+    'auth/too-many-requests': 'Too many attempts. Please try again later.',
+    'auth/network-request-failed': 'Network error — check your connection.',
+    'auth/invalid-credential': 'Incorrect email or password.',
+  };
+  return map[e.code] || e.message;
+}
+
+document.getElementById('logout-btn').addEventListener('click', async () => {
+  stopLoop();
+  videoEl.pause();
+  app.activeClipId = null;
+  app.landmarks = null;
+  app.racquetBox = null;
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  await fbAuth.signOut();
+});
+
+// ════════════════════════════════════════════════════════════
+//  VIDEO LIBRARY  (Firebase Storage + Firestore)
+// ════════════════════════════════════════════════════════════
+function subscribeVideos(userId) {
+  if (unsubVideos) unsubVideos();
+  unsubVideos = fbDb
+    .collection('users').doc(userId)
+    .collection('videos')
+    .orderBy('uploadedAt', 'desc')
+    .onSnapshot(
+      snap => {
+        app.clips = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        renderClipList();
+      },
+      err => console.error('[TA] Firestore error:', err)
+    );
+}
+
+async function uploadClips(files) {
+  const userId = fbAuth.currentUser?.uid;
+  if (!userId) return;
+
+  for (const file of files) {
+    if (!file.type.startsWith('video/')) continue;
+
+    const uid       = Date.now().toString(36) + Math.random().toString(36).slice(2);
+    const upEntry   = { id: uid, name: file.name, progress: 0, error: null };
+    app.uploads.push(upEntry);
+    renderClipList();
+
+    const path      = `users/${userId}/videos/${uid}/${file.name}`;
+    const ref       = fbStorage.ref(path);
+    const task      = ref.put(file, { contentType: file.type });
+
+    task.on('state_changed',
+      snap => {
+        upEntry.progress = Math.round(snap.bytesTransferred / snap.totalBytes * 100);
+        renderClipList();
+      },
+      err => {
+        upEntry.error = err.message;
+        renderClipList();
+        setTimeout(() => {
+          app.uploads = app.uploads.filter(u => u.id !== uid);
+          renderClipList();
+        }, 4000);
+      },
+      async () => {
+        const downloadURL = await task.snapshot.ref.getDownloadURL();
+        await fbDb
+          .collection('users').doc(userId)
+          .collection('videos').doc(uid)
+          .set({
+            name:        file.name,
+            size:        file.size,
+            uploadedAt:  firebase.firestore.FieldValue.serverTimestamp(),
+            storagePath: path,
+            downloadURL,
+          });
+        app.uploads = app.uploads.filter(u => u.id !== uid);
+        // Firestore listener will add the clip to app.clips
+      }
+    );
+  }
+}
+
+async function deleteClip(clipId) {
+  if (!confirm('Permanently delete this video?')) return;
+  const userId = fbAuth.currentUser?.uid;
+  if (!userId) return;
+  const clip = app.clips.find(c => c.id === clipId);
+  if (!clip) return;
+
+  try {
+    if (clip.storagePath) await fbStorage.ref(clip.storagePath).delete();
+    await fbDb.collection('users').doc(userId).collection('videos').doc(clipId).delete();
+
+    if (app.activeClipId === clipId) {
+      stopLoop();
+      videoEl.pause();
+      videoEl.src = '';
+      app.landmarks = null;
+      app.racquetBox = null;
+      app.activeClipId = null;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      showSection('upload');
+    }
+  } catch (err) {
+    alert('Delete failed: ' + err.message);
+  }
+}
+
+function renderClipList() {
+  const list = document.getElementById('clip-list');
+  if (!app.clips.length && !app.uploads.length) {
+    list.innerHTML = `<div class="clip-empty"><div class="clip-empty-icon">🎬</div>No videos yet.<br>Upload one to start.</div>`;
+    return;
+  }
+
+  const uploadHTML = app.uploads.map(u => `
+    <div class="clip-upload${u.error ? ' error' : ''}">
+      <div class="clip-upload-icon">${u.error ? '⚠' : '↑'}</div>
+      <div class="clip-upload-info">
+        <div class="clip-upload-name">${escHtml(u.name)}</div>
+        ${u.error
+          ? `<div class="clip-upload-pct" style="color:#ffa198">${escHtml(u.error)}</div>`
+          : `<div class="clip-upload-bar"><div class="clip-upload-fill" style="width:${u.progress}%"></div></div>
+             <div class="clip-upload-pct">${u.progress}% — uploading…</div>`}
+      </div>
+    </div>`).join('');
+
+  const clipsHTML = app.clips.map(c => `
+    <div class="clip-item${c.id === app.activeClipId ? ' active' : ''}" data-id="${c.id}">
+      <div class="clip-thumb">▶</div>
+      <div class="clip-info">
+        <div class="clip-name" title="${escHtml(c.name)}">${escHtml(c.name)}</div>
+        <div class="clip-meta">${fmtSize(c.size || 0)}</div>
+      </div>
+      <button class="clip-del" data-clip-id="${c.id}" title="Delete">×</button>
+    </div>`).join('');
+
+  list.innerHTML = uploadHTML + clipsHTML;
+}
+
+document.getElementById('clip-list').addEventListener('click', e => {
+  const delBtn = e.target.closest('.clip-del');
+  if (delBtn) { e.stopPropagation(); deleteClip(delBtn.dataset.clipId); return; }
+  const item = e.target.closest('.clip-item');
+  if (item) selectClip(item.dataset.id);
+});
+
+function selectClip(id) {
+  const clip = app.clips.find(c => c.id === id);
+  if (!clip) return;
+
+  stopLoop();
+  videoEl.pause();
+  videoEl.src = '';
+  app.landmarks    = null;
+  app.racquetBox   = null;
+  app.activeClipId = id;
+  app.frameCount   = 0;
+  app.detFrames    = 0;
+  app.lastFpsUpdate = performance.now();
+  document.getElementById('det-fps').textContent = '';
+  stopScan();
+  resetStrokeDetector();
+  stroke.frozenResult       = null;
+  stroke.markers            = [];
+  stroke.deletedTimes       = clip.deletedStartTimes || [];
+  stroke.lastStrokeVT       = -999;
+  stroke.pendingServeCheck  = null;
+  stroke.wristHistory       = [];
+  scan.pendingServeCheck    = null;
+  scan.wristHistory         = [];
+  app.scanComplete          = false;
+  scan.prevPos        = null;
+  scan.active         = false;
+  scan.lastStrokeVT   = -999;
+  renderStrokeMarkers();
+
+  app.lastPausedMarkerVT = -Infinity;
+  app.lastLandmarkVT     = -Infinity;
+  app.lastNoBodyWarnVT   = -Infinity;
+  hideUndoBar();
+  renderClipList();
+  showSection('analyzer');
+  showLoading(true, 'Loading video…');
+
+  videoEl.src = clip.downloadURL || clip.url;
+  videoEl.load();
+}
+
+// ════════════════════════════════════════════════════════════
+//  VIDEO EVENTS
+// ════════════════════════════════════════════════════════════
+videoEl.addEventListener('loadedmetadata', () => {
+  showLoading(false);
+  updateScrub();
+  setFeedbackWaiting();
+});
+
+videoEl.addEventListener('loadeddata', () => {
+  syncCanvas();
+  tryStartScan(); // auto-scan once video and models are both ready
+});
+
+videoEl.addEventListener('play', () => {
+  document.getElementById('btn-pp').textContent = '⏸';
+  document.getElementById('live-dot').classList.remove('off');
+  // Reset no-body clocks so we don't fire immediately if there was a recent gap
+  app.lastLandmarkVT   = videoEl.currentTime;
+  app.lastNoBodyWarnVT = videoEl.currentTime;
+  startLoop();
+});
+
+videoEl.addEventListener('pause', () => {
+  document.getElementById('btn-pp').textContent = '▶';
+  document.getElementById('live-dot').classList.add('off');
+  drawOverlay();
+});
+
+videoEl.addEventListener('ended', () => {
+  document.getElementById('btn-pp').textContent = '▶';
+  document.getElementById('live-dot').classList.add('off');
+  stopLoop();
+  // If video ends during scan (shouldn't happen with seek-based scan, but just in case)
+  if (app.scanning) { app.scanning = false; showScanCompleteUI(); }
+});
+
+videoEl.addEventListener('seeked', () => {
+  if (app.sbsPauseTimeout) { clearTimeout(app.sbsPauseTimeout); app.sbsPauseTimeout = null; }
+  resetStrokeDetector();
+  stroke.lastStrokeVT = videoEl.currentTime - stroke.COOLDOWN - 0.01;
+  app.lastPausedMarkerVT = videoEl.currentTime; // only pause on markers after the seek point
+  updateScrub();
+  if (app.modelsReady && !app.detecting) detectFrame();
+});
+
+videoEl.addEventListener('timeupdate', () => {
+  updateScrub();
+  if (app.scanning) updateScanProgressUI();
+
+  if (videoEl.paused || app.scanning) return;
+  const vt = videoEl.currentTime;
+
+  // No-body detection: pause if pose landmarks have been absent for 1.5 s of video time.
+  // Fires independently of stroke markers — catches the player walking off-court.
+  if (app.modelsReady && app.lastLandmarkVT > -Infinity) {
+    const noBodyFor = vt - app.lastLandmarkVT;
+    const recentlyWarned = vt - app.lastNoBodyWarnVT < 5.0;
+    if (noBodyFor > 1.5 && !recentlyWarned) {
+      app.lastNoBodyWarnVT = vt;
+      videoEl.pause();
+      showNoBodyWarning();
+      return;
+    }
+  }
+
+  // Auto-pause: driven by scan markers so every detected stroke gets a pause,
+  // regardless of whether live detection caught it.
+  if (app.strokeByStrokeMode) {
+    const pending = stroke.markers.find(m => {
+      if (m.startTime <= app.lastPausedMarkerVT) return false;
+      const pauseAt = m.endTime != null ? m.endTime + 0.2 : m.startTime + 1.0;
+      return vt >= pauseAt;
+    });
+    if (pending) {
+      app.lastPausedMarkerVT = pending.startTime;
+      videoEl.pause();
+      showMarkerFeedback(pending, stroke.markers.indexOf(pending));
+    }
+  }
+});
+
+videoEl.addEventListener('error', () => {
+  const err = videoEl.error;
+  if (err?.code === MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED || err?.code === MediaError.MEDIA_ERR_NETWORK) {
+    showLoading(false);
+    document.getElementById('feedback-scroll').innerHTML = `
+      <div class="fb-waiting">
+        <div class="fb-waiting-icon">⚠️</div>
+        Video failed to load.<br><br>
+        This is likely a CORS issue with Firebase Storage.<br>
+        See setup instructions (Step 4) to configure CORS for your bucket.
+      </div>`;
+  }
+});
+
+// ════════════════════════════════════════════════════════════
+//  CANVAS SYNC
+//  With object-fit:contain the video ELEMENT fills the viewport
+//  but the rendered content is letterboxed inside it. We must
+//  position the canvas over the content area, not the element.
+// ════════════════════════════════════════════════════════════
+function syncCanvas() {
+  const vpr = document.getElementById('video-viewport').getBoundingClientRect();
+  const vr  = videoEl.getBoundingClientRect(); // element rect (full viewport)
+
+  // Intrinsic video dimensions
+  const vw = videoEl.videoWidth  || vr.width;
+  const vh = videoEl.videoHeight || vr.height;
+  if (!vw || !vh || vr.width < 1 || vr.height < 1) return;
+
+  // Calculate the actual rendered content rect within the element
+  // (object-fit: contain — letterbox on the short axis)
+  const elemAspect    = vr.width / vr.height;
+  const videoAspect   = vw / vh;
+  let contentW, contentH, contentOffsetX, contentOffsetY;
+  if (videoAspect > elemAspect) {
+    // Wider than element → black bars top & bottom
+    contentW       = vr.width;
+    contentH       = vr.width / videoAspect;
+    contentOffsetX = 0;
+    contentOffsetY = (vr.height - contentH) / 2;
+  } else {
+    // Taller than element → black bars left & right
+    contentH       = vr.height;
+    contentW       = vr.height * videoAspect;
+    contentOffsetX = (vr.width - contentW) / 2;
+    contentOffsetY = 0;
+  }
+
+  // Position canvas relative to the viewport container
+  const newL = Math.round(vr.left - vpr.left + contentOffsetX);
+  const newT = Math.round(vr.top  - vpr.top  + contentOffsetY);
+  const newW = Math.round(contentW);
+  const newH = Math.round(contentH);
+
+  if (newW < 1 || newH < 1) return;
+
+  if (newL !== app.canvasL || newT !== app.canvasT || newW !== app.canvasW || newH !== app.canvasH) {
+    canvas.style.left   = newL + 'px';
+    canvas.style.top    = newT + 'px';
+    canvas.style.width  = newW + 'px';
+    canvas.style.height = newH + 'px';
+    canvas.width  = newW;
+    canvas.height = newH;
+    app.canvasL = newL; app.canvasT = newT;
+    app.canvasW = newW; app.canvasH = newH;
+  }
+}
+
+// Landmarks map 1:1 to canvas since canvas now covers exactly the content area
+function lmPx(lm) {
+  return { x: lm.x * canvas.width, y: lm.y * canvas.height };
+}
+
+window.addEventListener('resize', () => { syncCanvas(); drawOverlay(); });
+
+// ════════════════════════════════════════════════════════════
+//  DETECTION LOOP
+// ════════════════════════════════════════════════════════════
+function startLoop() {
+  stopLoop();
+  app.detecting = false; // clear any stuck flag from a detection that ended mid-await
+  loop();
+}
+
+// Returns true if the detected racquet bbox centre is within
+// a reasonable distance of either wrist landmark.
+// Filters out false positives on crowd/background objects.
+function isRacquetNearWrist(bbox) {
+  if (!app.landmarks) return true; // no pose yet — allow it through
+  const [rx, ry, rw, rh] = bbox;
+  const cx = (rx + rw / 2) / (videoEl.videoWidth  || 1); // normalised 0-1
+  const cy = (ry + rh / 2) / (videoEl.videoHeight || 1);
+  const wrists = [app.landmarks[LM.L_WRIST], app.landmarks[LM.R_WRIST]];
+  return wrists.some(w => {
+    if (!w || w.visibility < 0.4) return false;
+    const dx = cx - w.x, dy = cy - w.y;
+    return Math.sqrt(dx * dx + dy * dy) < 0.3; // within 30% of frame width
+  });
+}
+
+function stopLoop() {
+  if (app.rafId) { cancelAnimationFrame(app.rafId); app.rafId = null; }
+}
+
+async function loop() {
+  if (videoEl.paused || videoEl.ended) return;
+
+  // Keep canvas aligned to video every frame (cheap rect read)
+  syncCanvas();
+
+  // During background scan: clear any stale overlay so nothing is shown
+  if (app.scanning) {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    app.rafId = requestAnimationFrame(loop);
+    return;
+  }
+
+  app.frameCount++;
+
+  if (!app.detecting && app.modelsReady && !app.scanning) {
+    app.detecting = true;
+    try {
+      await app.poseModel.send({ image: videoEl });
+
+      if (app.frameCount % 20 === 0 && app.cocoModel && !app.scanning) {
+        const preds = await app.cocoModel.detect(videoEl);
+        // Only accept high-confidence detections that are near a visible wrist
+        const racquet = preds.find(p =>
+          p.class === 'tennis racket' &&
+          p.score > 0.6 &&
+          isRacquetNearWrist(p.bbox)
+        );
+        if (racquet) {
+          const scaleX = canvas.width  / videoEl.videoWidth;
+          const scaleY = canvas.height / videoEl.videoHeight;
+          const [rx, ry, rw, rh] = racquet.bbox;
+          app.racquetBox = { x: rx*scaleX, y: ry*scaleY, w: rw*scaleX, h: rh*scaleY };
+        } else {
+          app.racquetBox = null;
+        }
+      }
+
+      // FPS display
+      app.detFrames++;
+      const now = performance.now();
+      if (now - app.lastFpsUpdate > 1000) {
+        document.getElementById('det-fps').textContent =
+          Math.round(app.detFrames * 1000 / (now - app.lastFpsUpdate)) + ' fps';
+        app.detFrames = 0;
+        app.lastFpsUpdate = now;
+      }
+    } catch (e) {
+      console.warn('[TA] Detection:', e);
+    }
+    app.detecting = false;
+  }
+
+  app.rafId = requestAnimationFrame(loop);
+}
+
+async function detectFrame() {
+  if (!app.modelsReady || app.detecting) return;
+  app.detecting = true;
+  try {
+    await app.poseModel.send({ image: videoEl });
+    // Also run racquet detection on seek/replay so the box appears immediately
+    if (app.cocoModel) {
+      const preds   = await app.cocoModel.detect(videoEl);
+      const racquet = preds.find(p => p.class === 'tennis racket' && p.score > 0.6 && isRacquetNearWrist(p.bbox));
+      if (racquet) {
+        const scaleX = canvas.width  / videoEl.videoWidth;
+        const scaleY = canvas.height / videoEl.videoHeight;
+        const [rx, ry, rw, rh] = racquet.bbox;
+        app.racquetBox = { x: rx*scaleX, y: ry*scaleY, w: rw*scaleX, h: rh*scaleY };
+      } else {
+        app.racquetBox = null;
+      }
+      drawOverlay();
+    }
+  } catch(e) {/* */}
+  app.detecting = false;
+}
+
+// ════════════════════════════════════════════════════════════
+//  POSE RESULTS → DRAW + STROKE DETECTION
+// ════════════════════════════════════════════════════════════
+function onPoseResults(results) {
+  if (app.scanSending) {
+    if (app.scanning && results.poseLandmarks) {
+      app.scanPoses++;
+      processScanStroke(results.poseLandmarks);
+    }
+    return;
+  }
+
+  // Live detection path
+  app.landmarks = results.poseLandmarks || null;
+  if (app.landmarks) {
+    app.lastLandmarkVT = videoEl.currentTime; // player is visible
+    if (!videoEl.paused) processStroke(app.landmarks);
+  }
+  drawOverlay();
+}
+
+// ════════════════════════════════════════════════════════════
+//  CANVAS DRAWING
+// ════════════════════════════════════════════════════════════
+function drawOverlay() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  const lms = app.landmarks;
+
+  if (lms) {
+    // Skeleton
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = 'rgba(88,166,255,0.75)';
+    for (const [a, b] of SKELETON_EDGES) {
+      const pa = lms[a], pb = lms[b];
+      if (!pa || !pb || pa.visibility < 0.35 || pb.visibility < 0.35) continue;
+      const pa2 = lmPx(pa), pb2 = lmPx(pb);
+      ctx.beginPath(); ctx.moveTo(pa2.x, pa2.y); ctx.lineTo(pb2.x, pb2.y); ctx.stroke();
+    }
+
+    // Joints
+    for (let i = 0; i < lms.length; i++) {
+      const lm = lms[i];
+      if (!lm || lm.visibility < 0.35) continue;
+      const pt = lmPx(lm);
+      ctx.beginPath();
+      ctx.arc(pt.x, pt.y, i < 11 ? 4 : 5, 0, Math.PI*2);
+      ctx.fillStyle = jointColor(i); ctx.fill();
+      ctx.strokeStyle = '#00000066'; ctx.lineWidth = 1.5; ctx.stroke();
+    }
+
+  }
+
+  // Racquet box
+  if (app.racquetBox) {
+    const { x, y, w, h } = app.racquetBox;
+    ctx.strokeStyle = '#f0a020'; ctx.lineWidth = 2;
+    ctx.strokeRect(x, y, w, h);
+    ctx.fillStyle = 'rgba(240,160,32,0.1)'; ctx.fillRect(x, y, w, h);
+    ctx.fillStyle = '#f0a020';
+    ctx.font = 'bold 11px sans-serif';
+    ctx.shadowColor = '#00000099'; ctx.shadowBlur = 3;
+    ctx.fillText('🎾 Racquet', x+4, y > 14 ? y-4 : y+h+13);
+    ctx.shadowBlur = 0;
+  }
+}
+
+function jointColor(i) {
+  if (i <= 10) return '#ff79c6';
+  if (i <= 16) return '#79c0ff';
+  if (i <= 22) return '#56d364';
+  return '#ffa657';
+}
+
+function drawAngleLabel(lms, ai, bi, ci) {
+  const a = lms[ai], b = lms[bi], c = lms[ci];
+  if (!a || !b || !c || a.visibility < 0.45 || b.visibility < 0.45 || c.visibility < 0.45) return;
+  const ang = angleDeg({x:a.x,y:a.y},{x:b.x,y:b.y},{x:c.x,y:c.y});
+  const pt  = lmPx(b);
+  const isElbow = bi === LM.L_ELBOW || bi === LM.R_ELBOW;
+  const good    = isElbow ? (ang >= 80 && ang <= 155) : (ang >= 115 && ang <= 165);
+  ctx.font = 'bold 11px monospace';
+  ctx.shadowColor = '#00000099'; ctx.shadowBlur = 3;
+  ctx.fillStyle = good ? '#56d364' : '#ffa657';
+  ctx.fillText(`${Math.round(ang)}°`, pt.x + 7, pt.y - 5);
+  ctx.shadowBlur = 0;
+}
+
+// ════════════════════════════════════════════════════════════
+//  MATH
+// ════════════════════════════════════════════════════════════
+function angleDeg(a, b, c) {
+  const r = Math.atan2(c.y-b.y, c.x-b.x) - Math.atan2(a.y-b.y, a.x-b.x);
+  let d = Math.abs(r * 180 / Math.PI);
+  if (d > 180) d = 360 - d;
+  return d;
+}
+
+function vis(lm, t=0.4) { return lm && lm.visibility >= t; }
+
+// ════════════════════════════════════════════════════════════
+//  METRICS COMPUTATION
+// ════════════════════════════════════════════════════════════
+function computeMetrics(lms) {
+  const m = {};
+  const a = (ai,bi,ci) => vis(lms[ai]) && vis(lms[bi]) && vis(lms[ci])
+    ? angleDeg({x:lms[ai].x,y:lms[ai].y},{x:lms[bi].x,y:lms[bi].y},{x:lms[ci].x,y:lms[ci].y})
+    : undefined;
+
+  m.leftElbow  = a(LM.L_SHOULDER, LM.L_ELBOW, LM.L_WRIST);
+  m.rightElbow = a(LM.R_SHOULDER, LM.R_ELBOW, LM.R_WRIST);
+  m.leftKnee   = a(LM.L_HIP,      LM.L_KNEE,  LM.L_ANKLE);
+  m.rightKnee  = a(LM.R_HIP,      LM.R_KNEE,  LM.R_ANKLE);
+
+  if (vis(lms[LM.L_SHOULDER]) && vis(lms[LM.R_SHOULDER])) {
+    const dx = lms[LM.R_SHOULDER].x - lms[LM.L_SHOULDER].x;
+    const dy = lms[LM.R_SHOULDER].y - lms[LM.L_SHOULDER].y;
+    m.shoulderTilt = Math.abs(Math.atan2(dy, dx) * 180 / Math.PI);
+  }
+
+  if (vis(lms[LM.L_SHOULDER]) && vis(lms[LM.R_SHOULDER]) && vis(lms[LM.L_HIP]) && vis(lms[LM.R_HIP])) {
+    const msX = (lms[LM.L_SHOULDER].x + lms[LM.R_SHOULDER].x) / 2;
+    const msY = (lms[LM.L_SHOULDER].y + lms[LM.R_SHOULDER].y) / 2;
+    const mhX = (lms[LM.L_HIP].x + lms[LM.R_HIP].x) / 2;
+    const mhY = (lms[LM.L_HIP].y + lms[LM.R_HIP].y) / 2;
+    m.trunkLean = Math.abs(Math.atan2(msX - mhX, mhY - msY) * 180 / Math.PI);
+  }
+
+  const rW = lms[LM.R_WRIST], rS = lms[LM.R_SHOULDER];
+  const lW = lms[LM.L_WRIST], lS = lms[LM.L_SHOULDER];
+  if (vis(rW) && vis(rS)) m.rightWristHigh = rS.y - rW.y;
+  if (vis(lW) && vis(lS)) m.leftWristHigh  = lS.y - lW.y;
+
+  // Average visibility of key landmarks — used to warn when player is out of frame
+  const KEY_VIS_LMS = [
+    LM.L_SHOULDER, LM.R_SHOULDER,
+    LM.L_ELBOW,    LM.R_ELBOW,
+    LM.L_WRIST,    LM.R_WRIST,
+    LM.L_HIP,      LM.R_HIP,
+    LM.L_KNEE,     LM.R_KNEE,
+  ];
+  m.bodyVisibility = KEY_VIS_LMS.reduce((s, i) => s + (lms[i]?.visibility ?? 0), 0) / KEY_VIS_LMS.length;
+
+  return m;
+}
+
+// ════════════════════════════════════════════════════════════
+//  FEEDBACK GENERATION
+// ════════════════════════════════════════════════════════════
+function generateFeedback(m) {
+  const cards = [];
+
+  // Knee bend
+  const knees = [m.leftKnee, m.rightKnee].filter(v => v !== undefined);
+  if (knees.length) {
+    const avg = knees.reduce((a,b)=>a+b,0)/knees.length;
+    if (avg > 168)
+      cards.push({type:'warn', cat:'Stance', text:'Legs nearly straight — bend your knees for an athletic base. This is crucial for stability and power transfer.'});
+    else if (avg > 152)
+      cards.push({type:'warn', cat:'Stance', text:'Bend knees a bit more. A lower center of gravity improves balance and explosive movement.'});
+    else if (avg >= 115)
+      cards.push({type:'good', cat:'Stance', text:'Excellent knee bend. Your athletic position looks solid and ready to generate power.'});
+    else
+      cards.push({type:'info', cat:'Stance', text:'Very deep knee bend — make sure you can still transfer weight and move laterally.'});
+  }
+
+  // Elbow
+  const elbow = m.rightElbow ?? m.leftElbow;
+  if (elbow !== undefined) {
+    if (elbow > 162)
+      cards.push({type:'warn', cat:'Arm', text:'Arm too straight — keep a slight elbow bend to absorb pace and maintain control through contact.'});
+    else if (elbow >= 100)
+      cards.push({type:'good', cat:'Arm', text:'Good arm extension with a natural elbow bend — solid for power transfer.'});
+    else if (elbow >= 65)
+      cards.push({type:'info', cat:'Arm', text:'Compact elbow angle. Fine during backswing or follow-through — ensure full extension at contact.'});
+    else
+      cards.push({type:'warn', cat:'Arm', text:'Elbow too bent at contact. Drive your arm forward through the ball for more power.'});
+  }
+
+  // Shoulder rotation
+  if (m.shoulderTilt !== undefined) {
+    if (m.shoulderTilt < 7)
+      cards.push({type:'good', cat:'Rotation', text:'Great shoulder turn — you\'re well-rotated sideways to the net, loading the kinetic chain perfectly.'});
+    else if (m.shoulderTilt < 16)
+      cards.push({type:'info', cat:'Rotation', text:'Moderate shoulder rotation. Turning more during prep can significantly add racquet-head speed.'});
+    else
+      cards.push({type:'warn', cat:'Rotation', text:'Shoulders too open to the net. Rotate your upper body earlier in the backswing for cleaner mechanics.'});
+  }
+
+  // Trunk lean
+  if (m.trunkLean !== undefined) {
+    if (m.trunkLean <= 11)
+      cards.push({type:'good', cat:'Posture', text:'Good upright spine alignment through the stroke.'});
+    else if (m.trunkLean <= 23)
+      cards.push({type:'info', cat:'Posture', text:'Slight trunk lean — a little forward lean is natural; maintain overall balance.'});
+    else
+      cards.push({type:'warn', cat:'Posture', text:'Significant torso lean. Staying more upright improves consistency and reduces back stress.'});
+  }
+
+  // High arm (serve/overhead)
+  const highArm = Math.max(m.rightWristHigh ?? -1, m.leftWristHigh ?? -1);
+  if (highArm > 0.07)
+    cards.push({type:'tip', cat:'Shot Type', text:'High arm extension detected — looks like a serve or overhead. Focus on full trophy position and consistent toss.'});
+
+  if (app.racquetBox)
+    cards.push({type:'info', cat:'Racquet', text:'Racquet detected in frame. Tracking position relative to body for swing path analysis.'});
+
+  return cards;
+}
+
+function scoreStroke(m) {
+  let pts = 0, max = 0;
+  const score1 = (val, min, max_val, weight) => {
+    if (val === undefined) return;
+    max += weight;
+    if (val >= min && val <= max_val) pts += weight;
+    else if (val >= min*0.85 && val <= max_val*1.1) pts += weight * 0.55;
+    else pts += weight * 0.12;
+  };
+  const knees = [m.leftKnee, m.rightKnee].filter(v=>v!==undefined);
+  if (knees.length) score1(knees.reduce((a,b)=>a+b,0)/knees.length, 115, 155, 30);
+  score1(m.rightElbow ?? m.leftElbow, 95, 158, 30);
+  score1(m.shoulderTilt, 0, 10,  20);
+  score1(m.trunkLean,    0, 13,  20);
+  return max > 0 ? Math.round(pts / max * 100) : null;
+}
+
+function toggleStrokeByStroke() {
+  app.strokeByStrokeMode = document.getElementById('sbs-toggle').checked;
+}
+
+function nextStroke() {
+  if (app.sbsPauseTimeout) { clearTimeout(app.sbsPauseTimeout); app.sbsPauseTimeout = null; }
+  // Reset no-body clocks so Continue gives a fresh 1.5 s window before re-pausing
+  app.lastLandmarkVT   = videoEl.currentTime;
+  app.lastNoBodyWarnVT = videoEl.currentTime;
+  // Restore the last stroke's feedback (or waiting state) so the warning
+  // screen doesn't linger once the player resumes
+  if (stroke.frozenResult) {
+    renderFrozenFeedback();
+  } else {
+    setFeedbackWaiting();
+  }
+  videoEl.play();
+}
+
+function showNoBodyWarning() {
+  document.getElementById('feedback-scroll').innerHTML = `
+    <div class="fb-waiting">
+      <div class="fb-waiting-icon">⚠️</div>
+      <div style="font-size:13px;font-weight:600;color:#d29922;margin-bottom:6px">Player out of frame</div>
+      <div style="font-size:12px;color:#8b949e;line-height:1.6">
+        No body detected — the player appears to have left the frame.
+      </div>
+    </div>
+    <div class="sbs-actions">
+      <button class="sbs-next" onclick="skipToVisibleStroke()">⏭ Skip to next visible</button>
+      <button class="sbs-reject" onclick="nextStroke()">▶ Continue</button>
+    </div>`;
+  hideUndoBar();
+}
+
+function skipToVisibleStroke() {
+  const currentVT = videoEl.currentTime;
+  // Find the next marker after the current position with acceptable body visibility
+  const nextGood = stroke.markers.find(m =>
+    m.startTime > currentVT &&
+    (m.metrics?.bodyVisibility ?? 1) >= 0.45
+  );
+  if (nextGood) {
+    // Seek to 0.5 s before the stroke so the auto-pause fires naturally
+    videoEl.currentTime = Math.max(0, nextGood.startTime - 0.5);
+  }
+  videoEl.play();
+}
+
+let _undoMarker = null; // { marker, index } — single-level undo for "Not a stroke"
+
+function notAStroke() {
+  _undoMarker = null;
+  if (stroke.lastDetectedStartVT !== null && stroke.markers.length) {
+    let bestIdx = -1, bestDist = Infinity;
+    stroke.markers.forEach((m, i) => {
+      const d = Math.abs(m.startTime - stroke.lastDetectedStartVT);
+      if (d < bestDist) { bestDist = d; bestIdx = i; }
+    });
+    if (bestIdx >= 0 && bestDist < 2.0) {
+      _undoMarker = { marker: { ...stroke.markers[bestIdx] }, index: bestIdx };
+      stroke.deletedTimes.push(_undoMarker.marker.startTime);
+      stroke.markers.splice(bestIdx, 1);
+      renderStrokeMarkers();
+      saveScanResults();
+      document.getElementById('undo-bar').classList.add('visible');
+    }
+  }
+  stroke.lastDetectedStartVT = null;
+  videoEl.play();
+}
+
+function undoDeleteStroke() {
+  if (!_undoMarker) return;
+  const restoredTime = _undoMarker.marker.startTime;
+  stroke.deletedTimes = stroke.deletedTimes.filter(t => Math.abs(t - restoredTime) > 0.1);
+  stroke.markers.splice(_undoMarker.index, 0, _undoMarker.marker);
+  stroke.markers.sort((a, b) => a.startTime - b.startTime);
+  _undoMarker = null;
+  renderStrokeMarkers();
+  saveScanResults();
+  document.getElementById('undo-bar').classList.remove('visible');
+  setFeedbackWaiting('Stroke restored.');
+}
+
+function hideUndoBar() {
+  _undoMarker = null;
+  document.getElementById('undo-bar').classList.remove('visible');
+}
+
+function showMarkerFeedback(marker, idx) {
+  if (!marker.metrics && !marker.cards) return; // no analysis stored yet
+  stroke.frozenResult = {
+    metrics: marker.metrics || {},
+    cards:   marker.cards   || [],
+    score:   marker.score,
+    type:    marker.type,
+  };
+  renderFrozenFeedback();
+}
+
+// ════════════════════════════════════════════════════════════
+//  FEEDBACK UI
+// ════════════════════════════════════════════════════════════
+function renderFrozenFeedback() {
+  const { metrics: m, cards, score } = stroke.frozenResult;
+  const scroll = document.getElementById('feedback-scroll');
+
+  // Visibility check — warn and skip if player not fully in frame
+  const bodyVis = m.bodyVisibility ?? 1; // unknown (old cache) = assume fine
+  if (bodyVis < 0.45) {
+    const noDetection = bodyVis < 0.15;
+    scroll.innerHTML = `
+      <div class="fb-waiting">
+        <div class="fb-waiting-icon">⚠️</div>
+        <div style="font-size:13px;font-weight:600;color:#d29922;margin-bottom:6px">
+          ${noDetection ? 'Player outside frame' : 'Player partially out of frame'}
+        </div>
+        <div style="font-size:12px;color:#8b949e;line-height:1.6">
+          ${noDetection
+            ? 'No body was detected — the player appears to be outside the frame.'
+            : "Key body landmarks aren't visible — this stroke can't be accurately analyzed."}
+        </div>
+      </div>
+      <div class="sbs-actions">
+        <button class="sbs-next" onclick="skipToVisibleStroke()">⏭ Skip to next visible</button>
+        <button class="sbs-reject" onclick="nextStroke()">▶ Continue</button>
+      </div>`;
+    hideUndoBar();
+    return;
+  }
+
+  let html = '';
+
+  // Stroke label with type
+  const t = stroke.frozenResult.type;
+  const typeLabel = t ? `${t.icon} ${t.type}` : 'Stroke';
+  html += `<div style="margin-bottom:10px">
+    <div class="fb-stroke-label"><div class="dot"></div> ${typeLabel}</div>
+  </div>`;
+
+  // Score
+  if (score !== null) {
+    const sc = score >= 70 ? 'good' : score >= 45 ? 'ok' : 'bad';
+    const bc = score >= 70 ? '#3fb950' : score >= 45 ? '#d29922' : '#f85149';
+    const desc = score >= 80 ? 'Excellent' : score >= 65 ? 'Good' : score >= 50 ? 'Fair' : 'Needs work';
+    html += `<div class="fb-section"><div class="fb-lbl">Stroke Score</div>
+      <div class="score-badge">
+        <div><div class="score-lbl">Overall</div><div class="score-val ${sc}">${score}</div></div>
+        <div>
+          <div class="score-bar-wrap"><div class="score-bar" style="width:${score}%;background:${bc}"></div></div>
+          <div class="score-desc">${desc} &nbsp;/100</div>
+        </div>
+      </div></div>`;
+  }
+
+  // Metrics table
+  const metricDefs = [
+    { key:'leftElbow',    label:'Left Elbow',    good:[80,155] },
+    { key:'rightElbow',   label:'Right Elbow',   good:[80,155] },
+    { key:'leftKnee',     label:'Left Knee',     good:[115,165] },
+    { key:'rightKnee',    label:'Right Knee',    good:[115,165] },
+    { key:'shoulderTilt', label:'Shoulder Tilt', good:[0,12]   },
+    { key:'trunkLean',    label:'Trunk Lean',    good:[0,14]   },
+  ];
+  const hasM = metricDefs.some(d => m[d.key] !== undefined);
+  if (hasM) {
+    html += `<div class="fb-section"><div class="fb-lbl">Joint Angles</div><div class="metrics-tbl">`;
+    for (const def of metricDefs) {
+      if (m[def.key] === undefined) continue;
+      const val = Math.round(m[def.key]);
+      const cls = val >= def.good[0] && val <= def.good[1] ? 'm-good'
+                : (val < def.good[0]*0.8 || val > def.good[1]*1.12) ? 'm-bad' : 'm-warn';
+      html += `<div class="m-row"><span class="m-name">${def.label}</span><span class="m-val ${cls}">${val}°</span></div>`;
+    }
+    html += `</div></div>`;
+  }
+
+  // Feedback cards
+  if (cards.length) {
+    html += `<div class="fb-section"><div class="fb-lbl">Coaching</div>`;
+    for (const c of cards) {
+      const tag = c.type === 'good' ? '✓ Great' : c.type === 'warn' ? '⚠ Improve' : c.type === 'tip' ? '💡 Tip' : 'ℹ Info';
+      html += `<div class="fb-card ${c.type}"><div class="fb-tag">${c.cat} — ${tag}</div><div class="fb-text">${c.text}</div></div>`;
+    }
+    html += `</div>`;
+  }
+
+  scroll.innerHTML = html;
+  hideUndoBar();
+
+  if (app.strokeByStrokeMode) {
+    scroll.innerHTML += `
+      <div class="sbs-actions">
+        <button class="sbs-next"   onclick="nextStroke()">▶ Next stroke</button>
+        <button class="sbs-reject" onclick="notAStroke()">✕ Not a stroke</button>
+      </div>`;
+  }
+}
+
+function setFeedbackWaiting(msg) {
+  document.getElementById('feedback-scroll').innerHTML = `
+    <div class="fb-waiting">
+      <div class="fb-waiting-icon">🎾</div>
+      ${msg || 'Play the video and swing.<br>Feedback will appear after each stroke.'}
+    </div>`;
+}
+
+// ════════════════════════════════════════════════════════════
+//  CONTROLS
+// ════════════════════════════════════════════════════════════
+function updateScrub() {
+  if (!videoEl.duration) return;
+  const pct = (videoEl.currentTime / videoEl.duration) * 100;
+  document.getElementById('scrub-fill').style.width = pct + '%';
+  document.getElementById('scrub-thumb').style.left  = pct + '%';
+  document.getElementById('time-label').textContent =
+    `${fmtTime(videoEl.currentTime)} / ${fmtTime(videoEl.duration)}`;
+}
+
+const scrubTrack = document.getElementById('scrub-track');
+let scrubDrag = false;
+scrubTrack.addEventListener('click', e => {
+  const r = scrubTrack.getBoundingClientRect();
+  videoEl.currentTime = ((e.clientX - r.left) / r.width) * videoEl.duration;
+});
+scrubTrack.addEventListener('mousedown', () => scrubDrag = true);
+document.addEventListener('mousemove', e => {
+  if (!scrubDrag || !videoEl.duration) return;
+  const r   = scrubTrack.getBoundingClientRect();
+  const pct = Math.max(0, Math.min(1, (e.clientX - r.left) / r.width));
+  videoEl.currentTime = pct * videoEl.duration;
+});
+document.addEventListener('mouseup', () => scrubDrag = false);
+
+document.getElementById('btn-pp').addEventListener('click',  () => videoEl.paused ? videoEl.play() : videoEl.pause());
+document.getElementById('btn-rw10').addEventListener('click', () => { videoEl.currentTime = Math.max(0, videoEl.currentTime - 10); });
+document.getElementById('btn-rw5').addEventListener('click',  () => { videoEl.currentTime = Math.max(0, videoEl.currentTime - 5); });
+document.getElementById('btn-ff5').addEventListener('click',  () => { videoEl.currentTime = Math.min(videoEl.duration, videoEl.currentTime + 5); });
+document.getElementById('btn-ff10').addEventListener('click', () => { videoEl.currentTime = Math.min(videoEl.duration, videoEl.currentTime + 10); });
+document.getElementById('speed-pick').addEventListener('change', e => { videoEl.playbackRate = parseFloat(e.target.value); });
+
+document.addEventListener('keydown', e => {
+  if (e.target.tagName === 'INPUT') return;
+  if (e.code === 'Space')      { e.preventDefault(); videoEl.paused ? videoEl.play() : videoEl.pause(); }
+  if (e.code === 'ArrowLeft')  { e.preventDefault(); videoEl.currentTime = Math.max(0, videoEl.currentTime - (e.shiftKey ? 10 : 5)); }
+  if (e.code === 'ArrowRight') { e.preventDefault(); videoEl.currentTime = Math.min(videoEl.duration, videoEl.currentTime + (e.shiftKey ? 10 : 5)); }
+});
+
+// ════════════════════════════════════════════════════════════
+//  FILE HANDLING
+// ════════════════════════════════════════════════════════════
+fileInput.addEventListener('change', e => { uploadClips(Array.from(e.target.files)); fileInput.value = ''; });
+
+function triggerPicker() { fileInput.click(); }
+document.getElementById('browse-btn').addEventListener('click', triggerPicker);
+document.getElementById('sidebar-add-btn').addEventListener('click', triggerPicker);
+document.getElementById('drop-zone').addEventListener('click', e => { if (e.target.tagName !== 'BUTTON') triggerPicker(); });
+
+document.addEventListener('dragenter', e => { e.preventDefault(); document.getElementById('drop-zone').classList.add('drag-over'); });
+document.addEventListener('dragover',  e => { e.preventDefault(); document.getElementById('drop-zone').classList.add('drag-over'); });
+document.addEventListener('dragleave', e => { if (!e.relatedTarget) document.getElementById('drop-zone').classList.remove('drag-over'); });
+document.addEventListener('drop', e => {
+  e.preventDefault();
+  document.getElementById('drop-zone').classList.remove('drag-over');
+  uploadClips(Array.from(e.dataTransfer.files));
+});
+
+// ════════════════════════════════════════════════════════════
+//  UI HELPERS
+// ════════════════════════════════════════════════════════════
+function showSection(which) {
+  document.getElementById('upload-area').style.display   = which === 'upload'   ? 'flex' : 'none';
+  document.getElementById('analyzer-area').style.display = which === 'analyzer' ? 'flex' : 'none';
+  document.getElementById('rescan-btn').disabled = which !== 'analyzer';
+}
+
+function showLoading(show, msg) {
+  const el = document.getElementById('video-loading');
+  el.style.display = show ? 'flex' : 'none';
+  if (msg) document.getElementById('loading-msg').textContent = msg;
+}
+
+function showMain() {
+  document.getElementById('setup-screen').classList.remove('visible');
+  document.getElementById('auth-screen').classList.remove('visible');
+  document.getElementById('main-app').classList.add('visible');
+  showSection('upload');
+}
+
+function showAuth() {
+  document.getElementById('setup-screen').classList.remove('visible');
+  document.getElementById('main-app').classList.remove('visible');
+  document.getElementById('analyzer-area').style.display = 'none';
+  document.getElementById('upload-area').style.display   = 'flex';
+  stopLoop();
+  document.getElementById('auth-screen').classList.add('visible');
+}
+
+function fmtTime(s) {
+  if (!isFinite(s)) return '0:00';
+  return `${Math.floor(s/60)}:${Math.floor(s%60).toString().padStart(2,'0')}`;
+}
+
+function fmtSize(b) {
+  if (b < 1024) return b + ' B';
+  if (b < 1048576) return (b/1024).toFixed(1) + ' KB';
+  return (b/1048576).toFixed(1) + ' MB';
+}
+
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ════════════════════════════════════════════════════════════
+//  BOOT
+// ════════════════════════════════════════════════════════════
+if (!CONFIG_READY) {
+  document.getElementById('setup-screen').classList.add('visible');
+} else {
+  initFirebase();
+  loadModels();
+}
+</script>
+</body>
+</html>
