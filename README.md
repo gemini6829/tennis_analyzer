@@ -24,6 +24,8 @@
 | 65°–100°: info — compact, fine during backswing | 115°–152°: good — solid athletic position | 16°: warn — shoulders too open | 23°: warn — significant lean |
 | < 65°: warn — too bent, not extending through ball | < 115°: info — very deep, check mobility |
 
+![Screenshot of score panel.](assets/score panel.png)
+
 ### Issues
 - The body landmark detection is unstable, causing the angles to be inaccurate. 
 - Racquet detection is unreliable. This causes stroke detection to be wrong, with a single stroke sometimes having multiple scores.
