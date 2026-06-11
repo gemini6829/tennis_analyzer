@@ -2,6 +2,19 @@
 ## A Computer Vision Approach to Automated Coaching
 
 
+## — 5/31/2026 —
+### Achievements (more advanced features)
+<img align="right" width="500" src="assets/playback_view.png">
+
+- While the analyzer scans through the video, small tick marks appear on the video progress bar to show detected strokes. The marks are colored green, yellow, or red according to the stroke’s score. The user can click on a mark to watch the associated stroke.
+- A background scan plays the video at 4x speed and samples frames at regular intervals, so the user doesn’t have to watch the entire video for the analyzer to finish. There is also a Skip Scan option that allows the user to watch the video and see feedback appear in real time.
+- A stroke classification feature categorizes each stroke as forehand or backhand groundstroke/volley/slice or serve/overhead.
+
+### Issues
+- Detection is still inaccurate so the marks don’t line up with actual strokes, there are much more marks than strokes.
+- Almost every stroke is being classified as a forehand volley.
+
+
 ## — 5/28/26 —
 ### Achievements (initial framework setup)
 - I set up a simple website with initial features including video file upload and basic playback functions. Strokes are detected, analyzed, and scored, with feedback appearing in a side panel.
@@ -25,7 +38,6 @@
 | 100°–162°: good — natural bend | 152°–168°: warn — bend more | 7°–16°: info — moderate rotation | 11°–23°: info — slight lean, monitor balance |
 | 65°–100°: info — compact, fine during backswing | 115°–152°: good — solid athletic position | 16°: warn — shoulders too open | 23°: warn — significant lean |
 | < 65°: warn — too bent, not extending through ball | < 115°: info — very deep, check mobility |
-
 
 ### Issues
 - The body landmark detection is unstable, causing the angles to be inaccurate. 
