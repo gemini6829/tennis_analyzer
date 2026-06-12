@@ -4,22 +4,22 @@
 
 ## — 6/4/2026 —
 ### Achievements
-- Algorithm modifications:
-  - Try to make stroke classification more accurate
-    - Initial algorithm:
-      - Compact swing (limited x and y travel) -> volley
-      - Wrist above shoulder and large range -> serve/overhead
-      - Downward travel -> slice
-      - None of the above -> groundstroke
-    - The scan only looks at a few frames of the serve, detecting a small range, which classifies as volley.
-    - Forehand/backhand distinction was incorrectly comparing the wrist position to hips, causing almost all strokes to classify as forehand.
+#### Algorithm modifications:
+- Try to make stroke classification more accurate
+  - Initial algorithm:
+    - Compact swing (limited x and y travel) -> volley
+    - Wrist above shoulder and large range -> serve/overhead
+    - Downward travel -> slice
+    - None of the above -> groundstroke
+  - The scan only looks at a few frames of the serve, detecting a small range, which classifies as volley.
+  - Forehand/backhand distinction was incorrectly comparing the wrist position to hips, causing almost all strokes to classify as forehand.
 <img align="right" width="250" src="assets/background_scan.png">
 
-- Feature improvements:
-  - I moved the scan to the background so the user doesn’t have to wait for the scan to complete. There is a scan progress bar and a stroke counter. The user can freely use the playback tools to watch the video. 
-  - I stored the stroke markers (on the progress bar) in Firestore so the user doesn’t have to rescan after opening the website again.
-  - I removed the angle numbers from the video screen because they overlapped and were unreadable. The only thing that appears on the video screen are dots, for body landmarks, and connecting lines for limbs.
-  - I added an Auto-pause feature, which if selected pauses the video whenever a stroke finishes so the user can read the analysis and feedback. Once done, the user can click “Continue” and the video unpauses until the next stroke is finished. If the analyzer incorrectly detects a stroke, the user can select “Not a stroke” and the marker disappears.
+#### Feature improvements:
+- I moved the scan to the background so the user doesn’t have to wait for the scan to complete. There is a scan progress bar and a stroke counter. The user can freely use the playback tools to watch the video. 
+- I stored the stroke markers (on the progress bar) in Firestore so the user doesn’t have to rescan after opening the website again.
+- I removed the angle numbers from the video screen because they overlapped and were unreadable. The only thing that appears on the video screen are dots, for body landmarks, and connecting lines for limbs.
+- I added an Auto-pause feature, which if selected pauses the video whenever a stroke finishes so the user can read the analysis and feedback. Once done, the user can click “Continue” and the video unpauses until the next stroke is finished. If the analyzer incorrectly detects a stroke, the user can select “Not a stroke” and the marker disappears.
 
 ### Issues
 - The stroke counter remained at 0 throughout the entire scan. This was fixed after adjusting the stroke detection requirements (wrist speed threshold).
