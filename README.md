@@ -5,18 +5,13 @@
 ## — 6/4/2026 —
 ### Achievements
 #### Algorithm modifications:
+<img align="right" width="500" src="assets/stroke_classification_algorithm.png">
+
 - Try to make stroke classification more accurate
-  - Initial algorithm:
-    - Compact swing (limited x and y travel) -> volley
-    - Wrist above shoulder and large range -> serve/overhead
-    - Downward travel -> slice
-    - None of the above -> groundstroke
   - The scan only looks at a few frames of the serve, detecting a small range, which classifies as volley.
   - Forehand/backhand distinction was incorrectly comparing the wrist position to hips, causing almost all strokes to classify as forehand.
 
 #### Feature improvements:
-<img align="right" width="250" src="assets/background_scan.png">
-
 - I moved the scan to the background so the user doesn’t have to wait for the scan to complete. There is a scan progress bar and a stroke counter. The user can freely use the playback tools to watch the video. 
 - I stored the stroke markers (on the progress bar) in Firestore so the user doesn’t have to rescan after opening the website again.
 - I removed the angle numbers from the video screen because they overlapped and were unreadable. The only thing that appears on the video screen are dots, for body landmarks, and connecting lines for limbs.
@@ -24,6 +19,8 @@
 
 ### Issues
 - The stroke counter remained at 0 throughout the entire scan. This was fixed after adjusting the stroke detection requirements (wrist speed threshold).
+<img align="right" width="250" src="assets/background_scan.png">
+
 - The timing of the pause had to be adjusted because the detector tends to stop the stroke right after the ball is hit, before the follow-through is over.
 - The background scan adds markers to the progress bar, but watching the video after the scan continues to add new markers. This is due to different frames being sampled, causing different detected stroke start times and scores. I changed the background scan to only detect strokes, adding grey markers, while the real-time playback assigned scores to the markers. This was unreliable because new strokes were still being detected. I switched back to having the background scan detect strokes and assign scores, storing these in the scan buffer. The real-time playback takes scores and feedback directly from the buffer.
 - Sometimes stroke analysis panel doesn’t update quickly enough, and it would skip a few strokes if they were close together. Fixed to update whenever a new stroke starts.
