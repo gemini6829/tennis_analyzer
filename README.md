@@ -1,6 +1,29 @@
 # AI-Powered Tennis Stroke Analyzer for Junior Players
 ## A Computer Vision Approach to Automated Coaching
 
+## — 6/11/26 —
+### Achievements
+#### Algorithm modifications:
+- Stroke end time calculation
+  - Initial algorithm: stroke start time + 1 s (assumes constant swing length for all types of strokes)
+  - Improved: stroke end time + 0.2 s
+- Continue working on stroke classification
+  - In a serve, the wrist speed drops as the player reaches trophy position, causing the detector to end the stroke. The wrist never gets above the shoulder and the stroke is never classified as a serve/overhead. I added a pending serve check watch to see if wrist goes above shoulder in the next 2.5 seconds after a stroke ends.
+  - When the player’s body is turned to the side, so that the shoulders are perpendicular to the camera, a large racquet takeback can cross to the opposite side of the body, causing misclassification between forehands and backhands. Changed to find the wrist’s position at its maximum horizontal distance from the shoulder midpoint and see which side of the body it’s on.
+
+#### Feature improvements:
+- A Rescan option, for when the background scan has already been conducted, to implement new algorithm updates.
+- Undo button at the bottom of the score panel in case a stroke is mistakenly deleted.
+- When the player’s body leaves the frame or is too far away, and the detector can’t find the body landmarks, I added a warning that tells the user that no player is detected and pauses the video. There is an option to continue watching the video or skip ahead to when the player returns to the frame. This warning initially covered the entire score panel, I later changed it to be a popup bar at the bottom of the panel that doesn’t pause the video. The player can choose to dismiss the warning or skip ahead to the next visible time.
+- A right/left-handedness switch that flips forehand/backhand classification for left-handed players.
+- I’ve been using GoPro footage of a tennis match to test the analyzer, but the camera angle and video quality are not high. Sometimes the player moves out of frame, or far away from the camera, making it difficult to detect body landmarks. In order to test and finetune the analyzer more easily, I filmed closeup videos of myself performing simple strokes with good and bad technique.
+
+### Issues
+- When the initial background scan is skipped, there is a bug that causes the Auto-pause feature to not work even when the user has selected it.
+- When the dominant wrist becomes less visible (like when blocked by the player’s body), the detector switches to using the non-dominant wrist, resulting in inaccurate analysis.
+- The detector “starts” a stroke when the wrist speed reaches a threshold, but this often excludes the slower preparation/takeback in a swing. This was improved by maintaining a 2 second wrist history. When the wrist speed increases, the history is searched for the time when the arm was at neutral position (wrist aligned with shoulder) and uses that as the start time.
+- Similarly, the stroke ends early when the follow-through is slow. To fix this, the stroke only ends when the wrist has traveled a certain distance after the wrist speed drops below the stroke threshold.
+
 
 ## — 6/4/2026 —
 ### Achievements
