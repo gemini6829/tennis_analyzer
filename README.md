@@ -4,6 +4,8 @@
 ## — 6/16/26 —
 ### Achievements
 #### Algorithm modifications:
+<img align="right" width="500" src="assets/stroke_detection_algorithm.png">
+
 - Stroke detection
   - Start speed: 1.2 -> 0.65
   - End speed: 0.35 -> 0.25
