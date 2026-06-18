@@ -1,6 +1,30 @@
 # AI-Powered Tennis Stroke Analyzer for Junior Players
 ## A Computer Vision Approach to Automated Coaching
 
+## — 6/16/26 —
+### Achievements
+#### Algorithm modifications:
+- Stroke detection
+  - Start speed: 1.2 -> 0.65
+  - End speed: 0.35 -> 0.25
+  - Min number of frames: 4 -> 3
+  - Required wrist visibility: 0.4 -> 0.3
+  - Swing travel distance: 0.08 -> 0.05
+
+#### Feature improvements:
+- Sometimes the body landmark detector mistakenly places dots, causing unrealistic angle measurements that result in extremely low stroke scores. To avoid this, I defined plausible bounds for each angle measurement. When the measured angle exceeds this, there will be a warning (“Possibly inaccurate”) and the measurement will have a decreased weight in the score calculation.
+  - Elbow: 15°–180°
+  - Knee: 70°–185°
+  - Shoulder tilt: 0°–60°
+  - Trunk lean: 0°–45°
+- The plausible bounds can help in a lot of cases, but when the player’s body is completed incorrectly detected (for example, shoulders are above head) the score will be inaccurate. I added a warning (similar to the out of frame warning) that tells the user detection and analysis may be inaccurate when basic anatomical ordering (nose, shoulders, hips, knees, ankles) goes out of order. If this warning triggers during a stroke, the stroke’s score will have a small indicator.
+- I incorporated a tennis ball detector, that can be helpful in identifying strokes (when the ball changes direction) and body orientation. However, with unclear files the ball is sometimes hard to detect, and the algorithm needs to be adjusted for serves, when the direction change is less extreme. 
+
+### Issues
+- Feedback updates can be triggered by both the detector (when speed drops) and when the stroke ends (end time + 0.2), sometimes causing the feedback panel to update multiple times while a single stroke is being hit.
+- When the camera angle is from the side, and the player’s shoulders are square, the detector can’t tell if the player is facing towards or away from the camera. This makes it unable to differentiate forehands from backhands.
+
+
 ## — 6/11/26 —
 ### Achievements
 #### Algorithm modifications:
