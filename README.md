@@ -19,8 +19,8 @@
   - Knee: 70°–185°
   - Shoulder tilt: 0°–60°
   - Trunk lean: 0°–45°
-- The plausible bounds can help in a lot of cases, but when the player’s body is completed incorrectly detected (for example, shoulders are above head) the score will be inaccurate. I added a warning (similar to the out of frame warning) that tells the user detection and analysis may be inaccurate when basic anatomical ordering (nose, shoulders, hips, knees, ankles) goes out of order. If this warning triggers during a stroke, the stroke’s score will have a small indicator.
-- I incorporated a tennis ball detector, that can be helpful in identifying strokes (when the ball changes direction) and body orientation. However, with unclear files the ball is sometimes hard to detect, and the algorithm needs to be adjusted for serves, when the direction change is less extreme. 
+- The plausible bounds can help in a lot of cases, but when the player’s body is completely incorrectly detected (for example, shoulders are above head) the score will be inaccurate. I added a warning (similar to the out of frame warning) that tells the user detection and analysis may be inaccurate when basic anatomical ordering (nose, shoulders, hips, knees, ankles) goes out of order. If this warning triggers during a stroke, the stroke’s score will have a small indicator.
+- I incorporated a tennis ball detector that can be helpful in identifying strokes (when the ball changes direction) and body orientation. However, with unclear files the ball is sometimes hard to detect, and the algorithm needs to be adjusted for serves, when the direction change is less extreme. 
 
 ### Issues
 - Feedback updates can be triggered by both the detector (when speed drops) and when the stroke ends (end time + 0.2), sometimes causing the feedback panel to update multiple times while a single stroke is being hit.
@@ -34,7 +34,7 @@
   - Initial algorithm: stroke start time + 1 s (assumes constant swing length for all types of strokes)
   - Improved: stroke end time + 0.2 s
 - Continue working on stroke classification
-  - In a serve, the wrist speed drops as the player reaches trophy position, causing the detector to end the stroke. The wrist never gets above the shoulder and the stroke is never classified as a serve/overhead. I added a pending serve check watch to see if wrist goes above shoulder in the next 2.5 seconds after a stroke ends.
+  - In a serve, the wrist speed drops as the player reaches trophy position, causing the detector to end the stroke. The wrist never gets above the shoulder and the stroke is never classified as a serve/overhead. I added a pending serve check watch to see if the wrist goes above the shoulder in the next 2.5 seconds after a stroke ends.
   - When the player’s body is turned to the side, so that the shoulders are perpendicular to the camera, a large racquet takeback can cross to the opposite side of the body, causing misclassification between forehands and backhands. Changed to find the wrist’s position at its maximum horizontal distance from the shoulder midpoint and see which side of the body it’s on.
 
 #### Feature improvements:
@@ -72,7 +72,7 @@
 
 - The timing of the pause had to be adjusted because the detector tends to stop the stroke right after the ball is hit, before the follow-through is over.
 - The background scan adds markers to the progress bar, but watching the video after the scan continues to add new markers. This is due to different frames being sampled, causing different detected stroke start times and scores. I changed the background scan to only detect strokes, adding grey markers, while the real-time playback assigned scores to the markers. This was unreliable because new strokes were still being detected. I switched back to having the background scan detect strokes and assign scores, storing these in the scan buffer. The real-time playback takes scores and feedback directly from the buffer.
-- Sometimes stroke analysis panel doesn’t update quickly enough, and it would skip a few strokes if they were close together. Fixed to update whenever a new stroke starts.
+- Sometimes the stroke analysis panel doesn’t update quickly enough, and it would skip a few strokes if they were close together. Fixed to update whenever a new stroke starts.
 
 
 ## — 5/31/2026 —
