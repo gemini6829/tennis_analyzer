@@ -1,6 +1,31 @@
 # AI-Powered Tennis Stroke Analyzer for Junior Players
 ## A Computer Vision Approach to Automated Coaching
 
+## — 6/20/26 —
+### Achievements
+#### Algorithm modifications:
+- Ball detection
+  - Initially used HSV color thresholds (yellow/green), which was too strict and didn’t detect the ball.
+  - Switched to RGB thresholds:
+    - g > 180 && g > r + 20 && g > b + 20 && r > 120 (still too strict)
+    - g > 160 && g > r + 10 && g > b + 10 && r > 80 (false positives on green tennis court surface)
+    - g > 170 && g > r + 12 && g > b + 12 && r > 100 (started triggering on edges of white court lines)
+  - Switched to detecting through motion, scanning for groups of pixels that change color rapidly in consecutive frames. Large areas of motion are ignored, and the area surrounding the body landmarks (player) is ignored. 
+  - Motion detection was very unreliable and confused the opponent’s movement with the ball. I tried to block out the opponent’s movement by ignoring areas that experience constant motion lasting past the amount of time a ball would take to travel through the area, but the opponent is constantly moving, so still detected.
+  - The ball has a maximum velocity and must travel in a continuous path. I attempted to simplify the detector by only checking the region surrounding the ball’s last detected position for new motion. However, false positives cause this region to expand and the change becomes ineffective.
+  - Switched to a combination of motion and color. First detect areas that experience two rapid color changes (original -> ball -> original again), with the middle color falling in the yellow/green range. Continue to ignore large groups of pixels and set a maximum velocity on the ball movement, preventing random jumps from one point on the screen to another.
+  - When the ball travels through shadow or over the blue/green court, its color changes from bright yellow to light blue/green or even a dark grey. I dropped the color check completely and just checked each pixel for two consecutive color changes.
+  - Going back to continuity, a pixel that experiences motion can only be considered as a possible ball if there was motion in the surrounding area in the previous few frames. This slightly reduced the number of false positives that appeared on the edges of the video.
+
+#### Feature improvements:
+- Initially toast notifications appeared above the video whenever a ball was detected, but quickly stacked up and blocked the video. I changed the indicator to a constant label on the bottom, next to the playback speed dropdown, that turns green when a ball is detected.
+- To help with debugging the newly added ball detector, every 3 frames a blue circle is drawn over the video wherever a tennis ball is detected, tracing the ball’s path. An HUD display showed the RGB values of any pixel that is hovered over, as well as the number of pixels that experience motion (color change).
+- Whenever a new video file is opened, the feedback side panel starts out blank until the user watches the first stroke. Previously, it would show feedback on a stroke from the scan before the user even watched the video.
+
+### Issues
+- Whenever the video file is switched while the video is playing, the play/pause button and playback speed don’t reset. The button shows unpaused, and the speed dropdown shows the most recently selected speed even though the video plays at 1x speed.
+
+
 ## — 6/16/26 —
 ### Achievements
 #### Algorithm modifications:
