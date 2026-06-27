@@ -4,7 +4,7 @@
 ## — 6/25/26 —
 ### Achievements
 #### Algorithm modifications:
-<img align="right" width="500" src="assets/stroke_detection_algorithm.png">
+<img align="right" width="500" src="assets/ball_detection_algorithm.png">
 
 - Continued working on ball detection
   - Divide the video screen into individual cells (40x40 pixels) that are scanned for motion. A minimum of 10 pixels within a cell must be triggered with color change for the cell to record motion, and an adjacent cell must have also had motion in the last few frames.
