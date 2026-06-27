@@ -1,6 +1,28 @@
 # AI-Powered Tennis Stroke Analyzer for Junior Players
 ## A Computer Vision Approach to Automated Coaching
 
+## — 6/25/26 —
+### Achievements
+#### Algorithm modifications:
+<img align="right" width="500" src="assets/stroke_detection_algorithm.png">
+
+- Continued working on ball detection
+  - Divide the video screen into individual cells (40x40 pixels) that are scanned for motion. A minimum of 10 pixels within a cell must be triggered with color change for the cell to record motion, and an adjacent cell must have also had motion in the last few frames.
+  - To debug, I drew the cell borders over the playback screen. While the video is playing, a cell is highlighted in orange whenever the pixel motion requirement is met. Within the cell, an orange dot appears at the average position of all triggered pixels. When multiple cells light up, the orange dots should show the approximate path of the ball.
+  - When the ball is visible, the cells light up accordingly, but the ball is not detected, so the problem likely lies in the color check (initial and final color should be similar). I completely removed the color check, with motion only requiring two consecutive color changes.
+  - Random color changes within the video (resulting from poor quality or external movement) causes misdetection. I tried to limit the number of false positives by only selecting the top 2 cells that contain the most triggered pixels, which should relate to clearer motion.
+  - I experimented with testing the ball detection at 0.5x speed, and there were better results because the slower speed results in more frames being checked for motion. I adjusted so that all speeds returned the same results.
+  - At this point I combined the previous ball detection (detected with motion and color) and the debug trail (incorporates cells and takes average position of triggered pixels). Instead of one trail (initial overlay), multiple possible ball paths are drawn because the debug trail takes the 2 cells with the most motion.
+  - To improve accuracy, I attempted a color check again. The check only eliminates pixels that are very clearly not the right color (for example bright red, purple, black, etc.).
+
+#### Feature improvements:
+- Every time a video file is added or opened for the first time, the user is given the option to calibrate. Initially I made it so that the user can trace the tennis court, but many times the court will extend beyond the frame. I changed the calibration to a general “play area”. The user can click on the screen to place dots, and after placing multiple, an enclosed polygon is formed. The detection features only check the enclosed area for the player and the ball. The play area is saved so the user doesn’t have to re-calibrate unless they choose to do so.
+
+### Issues
+- Sometimes the body landmark and ball detection overlays don’t show up when the video is rewinded by a few seconds or the entire video is restarted.
+- Many parts of the application work better for a clear camera view that shows the complete court and all locations the player could potentially move to. This can only be achieved with a mounted camera that remains perfectly still. When the video is recorded by hand, there are many slight movements that may shift pixels by 1 or 2, but this renders the motion detection for the ball completely useless. Even with a fixed camera, factors like wind or an unstable fence can shift the camera.
+
+
 ## — 6/20/26 —
 ### Achievements
 #### Algorithm modifications:
