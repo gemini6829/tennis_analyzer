@@ -1,6 +1,17 @@
 # AI-Powered Tennis Stroke Analyzer for Junior Players
 ## A Computer Vision Approach to Automated Coaching
 
+## — 6/29/26 —
+### Achievements
+#### Algorithm modifications:
+- Continued working on ball detection
+  - The ball should be much smaller than the player and opponent, and should contain less pixels. I added a maximum pixel count so that motion is ignored when it’s too large to be the ball.
+  - I removed the cell grid completely. Sometimes clusters would span multiple cells, but if only a few pixels were in a particular cell, it would fail to meet the minimum requirement, and the cell would be ignored, cutting off part of the cluster. All pixels are identified and grouped into clusters before being filtered with the min/max thresholds.
+  - Instead of using only a number as the maximum cluster size, I set limitations on the height and width of clusters. The ball should appear on screen as a circular object, so clusters that are very long or wide are clearly not balls and can be ignored. (To check the functionality, I included bounding boxes in the overlay that outline clusters and show the number of pixels in the cluster.)
+  - I adjusted the algorithm to determine clusters of pixels. I expanded the distance requirement, so that pixels that were close together, even if they were separated by 1-2 pixels, would still be in the same cluster.
+  - I placed a mask surrounding the player’s body landmark skeleton so that motion wouldn’t be detected in the surrounding area. This prevented the motion pixels from covering up the body landmarks and also reduced the amount of motion that was detected from the player’s movement.
+
+
 ## — 6/25/26 —
 ### Achievements
 #### Algorithm modifications:
