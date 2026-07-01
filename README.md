@@ -11,6 +11,11 @@
   - I adjusted the algorithm to determine clusters of pixels. I expanded the distance requirement, so that pixels that were close together, even if they were separated by 1-2 pixels, would still be in the same cluster.
   - I placed a mask surrounding the player’s body landmark skeleton so that motion wouldn’t be detected in the surrounding area. This prevented the motion pixels from covering up the body landmarks and also reduced the amount of motion that was detected from the player’s movement.
 
+### Issues
+- When the motion detection overlay placed dots near the player’s body, it would sometimes override the body landmarks, causing the skeleton to not appear.
+- In an attempt to clean up code and simplify the algorithm, I rearranged and deleted code within the ball detection function. However some variables were linked to other parts of the application and the changes affected the cached stroke scan results. All videos had to be rescanned and the accuracy of the ball detection algorithm also fell. I had to retrace my steps and re-implement some of the changes I made to the algorithm earlier to improve accuracy.
+- After one of the changes I made, I deleted a section of code which seemed unnecessary, but ended up interfering with the cached scan results. The previously scanned videos were reset, and stroke markers stopped appearing along the progress bar. The problem was resolved after rescanning all the videos.
+
 
 ## — 6/25/26 —
 ### Achievements
