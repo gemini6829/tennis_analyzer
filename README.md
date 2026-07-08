@@ -1,6 +1,21 @@
 # AI-Powered Tennis Stroke Analyzer for Junior Players
 ## A Computer Vision Approach to Automated Coaching
 
+## — 7/4/26 —
+### Achievements
+#### Feature improvements:
+- Whenever the ball detection feature detects many clusters of motion, this usually means that there has been a large disturbance or the camera has shifted. When a frame detects more than 10 new clusters of motion, the frame is skipped and no new circles are displayed. A small alert appears that tells the user ball detection is unreliable.
+- I created a settings button that opens up a window in the middle of the screen with a list of various controls that used to be scattered throughout the page. This includes dominant hand selection, auto-pause after each stroke, on/off switch for ball detection, and play area marking.
+- Switched from MediaPipe complexity 1 to 2 to try to increase the accuracy of the body landmark detection. It resulted in a slightly less smooth overlay, but no noticeable differences.
+- When 3 consecutive frames detect excessive motion, an alert appears that notifies the user the camera may have moved.
+- The user has the option to delete video files that they have uploaded through the side navigation panel. A confirmation window prompts the user to permanently delete or cancel.
+- Cleaned up the stroke detection code so that there must be a minimum of 2 frames that satisfies the wrist speed threshold before a stroke is detected.
+- Added an on/off switch in the settings window that allows the user to choose whether they want angle measurements to appear along with the body landmarks on the video.
+
+### Issues
+- Whenever a portion of unnecessary code is deleted, random bugs often appear because there are exceptions being thrown that prevent parts of the page from loading. For example, the video library showed that no files were uploaded even though all files are stored, and no colored stroke markers appeared along the progress bar (those are also stored).
+
+
 ## — 6/29/26 —
 ### Achievements
 #### Algorithm modifications:
