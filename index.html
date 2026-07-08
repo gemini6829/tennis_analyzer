@@ -392,6 +392,138 @@
       transition: background 0.15s;
     }
     .dz-btn:hover { background: #2ea043; }
+    .dz-btn-row { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+    .dz-btn-rec {
+      display: inline-flex; align-items: center; gap: 7px;
+      padding: 10px 22px;
+      background: #21262d; border: 1px solid #30363d; border-radius: 7px;
+      color: #c9d1d9; font-size: 14px; font-weight: 500; cursor: pointer;
+      transition: border-color 0.15s, color 0.15s, background 0.15s;
+    }
+    .dz-btn-rec:hover { border-color: #f85149; color: #f85149; background: rgba(248,81,73,0.08); }
+
+    /* ── RECORDING SCREEN ────────────────────────────── */
+    #rec-screen { z-index: 200; background: #000; flex-direction: column; }
+    #rec-preview {
+      flex: 1; width: 100%; object-fit: cover; display: block;
+      transform-origin: center center; touch-action: none;
+    }
+    .rec-top-bar {
+      position: absolute; top: 0; left: 0; right: 0;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 14px 16px;
+      background: linear-gradient(to bottom, rgba(0,0,0,0.6) 0%, transparent 100%);
+    }
+    .rec-close-btn {
+      background: rgba(0,0,0,0.45); border: 1px solid rgba(255,255,255,0.2);
+      color: #fff; font-size: 18px; width: 38px; height: 38px;
+      border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center;
+    }
+    .rec-timer-badge {
+      background: rgba(0,0,0,0.55); color: #f85149;
+      font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums;
+      padding: 5px 14px; border-radius: 20px;
+      visibility: hidden;
+    }
+    .rec-timer-badge.active { visibility: visible; }
+    .rec-zoom-label {
+      background: rgba(0,0,0,0.45); color: #fff;
+      font-size: 12px; font-weight: 600;
+      padding: 5px 10px; border-radius: 20px;
+      min-width: 44px; text-align: center;
+    }
+    .rec-bottom-bar {
+      position: absolute; bottom: 0; left: 0; right: 0;
+      display: flex; align-items: center; justify-content: space-around;
+      padding: 24px 32px max(24px, env(safe-area-inset-bottom));
+      background: linear-gradient(to top, rgba(0,0,0,0.7) 0%, transparent 100%);
+    }
+    .rec-shutter {
+      width: 72px; height: 72px; border-radius: 50%;
+      border: 4px solid #fff; background: #f85149;
+      cursor: pointer; display: flex; align-items: center; justify-content: center;
+      transition: transform 0.1s, background 0.15s;
+      flex-shrink: 0;
+    }
+    .rec-shutter:active { transform: scale(0.92); }
+    .rec-shutter.recording { background: transparent; }
+    .rec-shutter-inner {
+      width: 26px; height: 26px; border-radius: 50%; background: #f85149;
+      transition: border-radius 0.2s, width 0.2s, height 0.2s;
+    }
+    .rec-shutter.recording .rec-shutter-inner {
+      border-radius: 5px; width: 22px; height: 22px;
+    }
+    .rec-side-btn {
+      width: 48px; height: 48px; border-radius: 50%;
+      background: rgba(0,0,0,0.45); border: 1px solid rgba(255,255,255,0.25);
+      color: #fff; font-size: 20px; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .rec-error {
+      position: absolute; bottom: 130px; left: 16px; right: 16px;
+      padding: 10px 14px; font-size: 13px; color: #ffa198;
+      background: rgba(0,0,0,0.75); border: 1px solid rgba(248,81,73,0.4);
+      border-radius: 8px; text-align: center; display: none;
+    }
+    /* Rename overlay — shown after recording stops */
+    .rec-rename-overlay {
+      position: absolute; inset: 0;
+      background: rgba(0,0,0,0.88);
+      display: none; align-items: center; justify-content: center;
+      padding: 24px;
+    }
+    .rec-rename-card {
+      background: #161b22; border: 1px solid #30363d; border-radius: 14px;
+      padding: 24px 20px; width: 100%; max-width: 360px;
+      display: flex; flex-direction: column; gap: 14px;
+    }
+    .rec-rename-title {
+      font-size: 16px; font-weight: 600; color: #e6edf3; text-align: center;
+    }
+    .rec-rename-input {
+      width: 100%; padding: 11px 13px;
+      background: #0d1117; border: 1px solid #30363d; border-radius: 8px;
+      color: #e6edf3; font-size: 14px; outline: none;
+      box-sizing: border-box;
+    }
+    .rec-rename-input:focus { border-color: #388bfd; }
+    .rec-rename-confirm {
+      padding: 13px; background: #238636; border: 1px solid #2ea043;
+      border-radius: 9px; color: #fff; font-size: 15px; font-weight: 600;
+      cursor: pointer; width: 100%;
+    }
+    .rec-rename-confirm:active { background: #2ea043; }
+    .rec-rename-cancel {
+      background: none; border: none; color: #8b949e;
+      font-size: 13px; cursor: pointer; text-align: center;
+    }
+    .rec-rename-cancel:active { color: #c9d1d9; }
+    /* Recording canvas overlay */
+    #rec-canvas {
+      position: absolute; inset: 0;
+      width: 100%; height: 100%;
+      pointer-events: none;
+    }
+    /* Rotate-to-landscape hint (non-blocking banner, portrait only) */
+    #rec-rotate-hint {
+      position: absolute; top: 56px; left: 50%; transform: translateX(-50%);
+      z-index: 25; display: none;
+      align-items: center; gap: 8px;
+      background: rgba(30,35,42,0.88); backdrop-filter: blur(6px);
+      border: 1px solid rgba(255,255,255,0.12); border-radius: 20px;
+      color: #c9d1d9; font-size: 13px; padding: 7px 14px 7px 10px;
+      white-space: nowrap; pointer-events: auto;
+    }
+    #rec-rotate-hint .rh-icon { font-size: 17px; }
+    #rec-rotate-hint .rh-dismiss {
+      margin-left: 6px; background: none; border: none; color: #8b949e;
+      font-size: 15px; cursor: pointer; padding: 0; line-height: 1;
+    }
+    /* State switching */
+    #rec-screen.renaming .rec-bottom-bar { display: none; }
+    #rec-screen.renaming .rec-top-bar { display: none; }
+    #rec-screen.renaming .rec-rename-overlay { display: flex; }
     .fmt-tags { margin-top: 18px; display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; }
     .fmt-tag {
       font-size: 11px; padding: 2px 8px; border-radius: 4px;
@@ -540,6 +672,7 @@
     .m-good { color: #3fb950; }
     .m-warn { color: #d29922; }
     .m-bad  { color: #f85149; }
+    .m-dim  { color: #484f58; font-style: italic; font-weight: 400; }
 
     .fb-card { border-radius: 7px; padding: 9px 11px; margin-bottom: 6px; border-left: 3px solid transparent; font-size: 12px; line-height: 1.45; background: #21262d; }
     .fb-card.good { border-color: #3fb950; }
@@ -569,13 +702,14 @@
     /* Collapsible metrics section */
     .metrics-details > summary {
       list-style: none; cursor: pointer; user-select: none;
-      display: flex; align-items: center; gap: 5px;
+      display: flex; align-items: center; justify-content: space-between;
     }
     .metrics-details > summary::-webkit-details-marker { display: none; }
-    .metrics-details > summary::after {
-      content: '▸'; font-size: 9px; color: #484f58; margin-left: 2px;
+    .metrics-summary::after {
+      content: 'show ▸'; font-size: 10px; font-weight: 500;
+      color: #58a6ff; letter-spacing: 0; text-transform: none;
     }
-    .metrics-details[open] > summary::after { content: '▾'; }
+    .metrics-details[open] .metrics-summary::after { content: 'hide ▾'; color: #58a6ff; }
 
     .fb-waiting {
       text-align: center; padding: 28px 14px;
@@ -640,7 +774,9 @@
       white-space: nowrap;
       box-shadow: 0 4px 20px rgba(0,0,0,0.5);
     }
-    #calib-banner.visible { display: flex; align-items: center; gap: 10px; }
+    #calib-banner.visible { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: center; }
+    body.force-mobile #calib-banner, body.force-mobile #calib-banner.visible { white-space: normal; max-width: calc(100% - 24px); left: 12px; transform: none; text-align: center; }
+    @media (max-width: 768px) { #calib-banner { white-space: normal; max-width: calc(100% - 24px); left: 12px; transform: none; text-align: center; } }
     #calib-banner button {
       background: #238636; border: none; border-radius: 5px;
       color: #fff; font-size: 12px; padding: 4px 10px; cursor: pointer;
@@ -659,17 +795,15 @@
     }
     #calib-overlay.active { display: block; }
     #calib-ui {
-      position: absolute;
-      bottom: 0; left: 0; right: 0;
-      background: rgba(13,17,23,0.88);
-      padding: 10px 16px;
-      display: flex; align-items: center; gap: 10px;
-      font-size: 13px; color: #e6edf3;
+      display: none; align-items: center; gap: 8px;
+      font-size: 12px; color: #e6edf3;
+      flex-wrap: wrap;
     }
+    #calib-ui.active { display: flex; }
     #calib-step-label {
-      flex: 1;
-      font-size: 13px;
-      color: #e6edf3;
+      flex: 1; min-width: 0;
+      font-size: 12px; color: #8b949e;
+      white-space: normal;
     }
     #calib-step-label strong { color: #3fb950; }
     #calib-ui button {
@@ -990,6 +1124,7 @@
     body.force-mobile #feedback-scroll          { overflow-y: auto !important; max-height: 55vh !important; }
     body.force-mobile .ctrl-btn                 { min-width: 38px !important; min-height: 38px !important; font-size: 18px !important; padding: 8px !important; }
     body.force-mobile .ctrl-btn.big             { font-size: 22px !important; }
+    body.force-mobile .btn-5s                   { display: none !important; }
     body.force-mobile #scrub-track              { height: 8px !important; margin-bottom: 8px !important; }
     body.force-mobile #scrub-thumb              { width: 18px !important; height: 18px !important; }
     body.force-mobile #settings-modal           { width: calc(100% - 32px) !important; }
@@ -1083,9 +1218,10 @@
       }
       #feedback-scroll { overflow-y: auto; max-height: 55vh; }
 
-      /* Bigger touch targets */
+      /* Bigger touch targets; hide ±5s buttons */
       .ctrl-btn { min-width: 38px; min-height: 38px; font-size: 18px; padding: 8px; }
       .ctrl-btn.big { font-size: 22px; }
+      .btn-5s { display: none; }
       #scrub-track { height: 8px; margin-bottom: 8px; }
       #scrub-thumb { width: 18px; height: 18px; }
 
@@ -1138,11 +1274,12 @@
       }
       #feedback-scroll { max-height: none; overflow-y: auto; }
 
-      /* Compact controls for landscape */
+      /* Compact controls for landscape; hide ±5s buttons */
       #controls-bar { padding: 6px 10px 8px; }
       #scrub-track { margin-bottom: 6px; }
       .ctrl-btn { min-width: 34px; min-height: 34px; font-size: 16px; padding: 6px; }
       .ctrl-btn.big { font-size: 20px; }
+      .btn-5s { display: none; }
 
       #settings-modal { width: calc(100% - 32px); }
     }
@@ -1396,7 +1533,8 @@ service firebase.storage {
           No videos yet.<br>Upload one to start.
         </div>
       </div>
-      <button class="sidebar-add-btn" id="sidebar-add-btn">+ Add Video</button>
+      <button class="sidebar-add-btn" id="sidebar-add-btn">📁 Add Video</button>
+      <button class="sidebar-add-btn" id="sidebar-rec-btn" onclick="openRecordModal()" style="border-color:#484f58;">📹 Record</button>
     </nav>
 
     <div id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
@@ -1410,7 +1548,10 @@ service firebase.storage {
           <div class="dz-title">Drop a tennis video here</div>
           <div class="dz-sub">AI detects body position and racquet<br>and gives real-time stroke coaching</div>
           <div class="dz-or">— or —</div>
-          <button class="dz-btn" id="browse-btn">📁 Browse Files</button>
+          <div class="dz-btn-row">
+            <button class="dz-btn" id="browse-btn">📁 Browse Files</button>
+            <button class="dz-btn-rec" id="record-btn" onclick="openRecordModal()">📹 Record</button>
+          </div>
           <div class="fmt-tags">
             <span class="fmt-tag">MP4</span><span class="fmt-tag">MOV</span>
             <span class="fmt-tag">AVI</span><span class="fmt-tag">WebM</span>
@@ -1434,34 +1575,32 @@ service firebase.storage {
                 <button class="skip" onclick="dismissCalibBanner()">Skip</button>
               </div>
               <!-- Calibration active overlay: captures clicks for point placement -->
-              <div id="calib-overlay">
-                <div id="calib-ui">
-                  <span id="calib-step-label">Click to add points</span>
-                  <button id="calib-close-poly-btn" onclick="closeCalibPolygon()" style="display:none;background:#1f4a2e;color:#3fb950;border-color:#238636;">⬡ Close polygon</button>
-                  <button id="calib-redo-btn"    onclick="redoCalibration()">↺ Redo</button>
-                  <button id="calib-cancel-btn"  onclick="cancelCalibration()">✕ Cancel</button>
-                  <button id="calib-confirm-btn" onclick="confirmCalibration()" disabled>✓ Confirm</button>
-                </div>
-              </div>
+              <div id="calib-overlay"></div>
               <div id="video-loading">
                 <div class="spinner"></div>
                 <div class="loading-msg" id="loading-msg">Loading…</div>
               </div>
             </div>
             <div id="controls-bar">
+              <div id="calib-ui">
+                <span id="calib-step-label">Click to add points</span>
+                <button id="calib-close-poly-btn" onclick="closeCalibPolygon()" style="display:none;background:#1f4a2e;color:#3fb950;border-color:#238636;">⬡ Close</button>
+                <button id="calib-redo-btn"    onclick="redoCalibration()">↺ Redo</button>
+                <button id="calib-cancel-btn"  onclick="cancelCalibration()">✕ Cancel</button>
+                <button id="calib-confirm-btn" onclick="confirmCalibration()" disabled>✓ Confirm</button>
+              </div>
               <div id="scrub-track">
                 <div id="scrub-fill"></div>
                 <div id="scrub-thumb"></div>
               </div>
               <div class="ctrl-row">
                 <button class="ctrl-btn" id="btn-rw10" title="Back 10s">⏮</button>
-                <button class="ctrl-btn" id="btn-rw5"  title="Back 5s">⏪</button>
+                <button class="ctrl-btn btn-5s" id="btn-rw5"  title="Back 5s">⏪</button>
                 <button class="ctrl-btn big" id="btn-pp" title="Play/Pause">▶</button>
-                <button class="ctrl-btn" id="btn-ff5"  title="Fwd 5s">⏩</button>
+                <button class="ctrl-btn btn-5s" id="btn-ff5"  title="Fwd 5s">⏩</button>
                 <button class="ctrl-btn" id="btn-ff10" title="Fwd 10s">⏭</button>
                 <span id="time-label">0:00 / 0:00</span>
                 <span class="ctrl-gap"></span>
-                <span id="ball-indicator" title="Ball detection overlay" onclick="toggleBallIndicator()" style="cursor:pointer"><span id="ball-indicator-dot"></span><span id="ball-indicator-label">Ball</span></span>
                 <span id="det-fps"></span>
                 <select id="speed-pick">
                   <option value="0.25">0.25×</option>
@@ -1470,6 +1609,7 @@ service firebase.storage {
                   <option value="1.5">1.5×</option>
                   <option value="2">2×</option>
                 </select>
+                <button class="ctrl-btn" id="btn-fullscreen" onclick="toggleFullscreen()" title="Fullscreen">⛶</button>
               </div>
             </div>
           </div>
@@ -1585,6 +1725,39 @@ service firebase.storage {
         <button class="sm-calib-btn" id="sm-calib-btn" onclick="settingsOpenCalib()">Mark area</button>
       </div>
 
+    </div>
+  </div>
+</div>
+
+<!-- Recording Screen -->
+<div id="rec-screen" class="screen" style="position:fixed;inset:0;">
+  <video id="rec-preview" autoplay playsinline muted></video>
+  <canvas id="rec-canvas"></canvas>
+  <!-- Non-blocking portrait tip — user can dismiss or just keep recording -->
+  <div id="rec-rotate-hint">
+    <span class="rh-icon">⟳</span>
+    <span>Landscape recommended</span>
+    <button class="rh-dismiss" onclick="_recHintDismiss()" title="Dismiss">✕</button>
+  </div>
+  <div class="rec-top-bar">
+    <button class="rec-close-btn" onclick="closeRecordModal()" title="Close">✕</button>
+    <div class="rec-timer-badge" id="rec-timer-badge">⏺ 0:00</div>
+    <div class="rec-zoom-label" id="rec-zoom-label">1×</div>
+  </div>
+  <div class="rec-error" id="rec-error"></div>
+  <div class="rec-bottom-bar">
+    <button class="rec-side-btn" id="rec-flip-btn" onclick="recFlipCamera()" title="Flip camera">🔄</button>
+    <button class="rec-shutter" id="rec-shutter" onclick="recToggle()" title="Record / Stop">
+      <div class="rec-shutter-inner"></div>
+    </button>
+    <div style="width:48px"></div>
+  </div>
+  <div class="rec-rename-overlay">
+    <div class="rec-rename-card">
+      <div class="rec-rename-title">Name your recording</div>
+      <input class="rec-rename-input" id="rec-rename-input" type="text" placeholder="e.g. Forehand practice">
+      <button class="rec-rename-confirm" onclick="recConfirmUpload()">✓ Upload &amp; Analyze</button>
+      <button class="rec-rename-cancel" onclick="closeRecordModal()">Cancel</button>
     </div>
   </div>
 </div>
@@ -1708,6 +1881,14 @@ ballDetCanvas.width  = 640;
 ballDetCanvas.height = 360;
 const ballDetCtx = ballDetCanvas.getContext('2d', { willReadFrequently: true });
 
+// Offscreen canvas used as an intermediate frame source for MediaPipe pose
+// detection during live playback. Sending a canvas (rather than the video
+// element directly) sidesteps browser/MediaPipe issues that arise with
+// MediaRecorder-produced videos (no duration metadata → treated as a live
+// stream → MediaPipe's WebGL reader fails to extract a valid frame).
+const poseDetCanvas = document.createElement('canvas');
+const poseDetCtx    = poseDetCanvas.getContext('2d');
+
 // ════════════════════════════════════════════════════════════
 //  APP STATE
 // ════════════════════════════════════════════════════════════
@@ -1744,6 +1925,10 @@ const app = {
   // Settings
   ballDetectionOverlay: true, // when false, circles are hidden but detection still runs
   angleOverlay: false,        // when true, joint angle numbers are drawn on the skeleton
+  // Recording
+  recMode:      false, // true while recording screen is open (camera running)
+  recRecording: false, // true while MediaRecorder is actively recording
+  _recElapsed:  0,     // seconds since recording started (used as virtual video time)
 };
 
 // Separate stroke-detection state used only during the background scan
@@ -1885,14 +2070,16 @@ function renderStrokeMarkers() {
 //  BACKGROUND SCAN
 // ════════════════════════════════════════════════════════════
 function tryStartScan() {
-  if (!app.modelsReady || !videoEl.duration || app.scanning) return;
+  if (!app.modelsReady || !videoEl.duration || !isFinite(videoEl.duration) || app.scanning) return;
   const clip = app.clips.find(c => c.id === app.activeClipId);
+  if (clip?.fromRecording) return; // MediaRecorder output — skip scan, use live detection
+  if (clip?.name?.toLowerCase().endsWith('.webm')) return; // WebM = Android MediaRecorder, no seek index
   if (loadCachedScan(clip)) return; // cached results found — skip scan
   startScan();
 }
 
 async function startScan() {
-  if (!app.modelsReady || !videoEl.duration || app.scanning) return;
+  if (!app.modelsReady || !videoEl.duration || !isFinite(videoEl.duration) || app.scanning) return;
 
   // Each scan gets a unique generation number. Every await below checks that this
   // scan is still the active one; if a newer scan has started (video switch, rescan)
@@ -2011,7 +2198,8 @@ async function startScan() {
 }
 
 function stopScan() {
-  app.scanning = false; // scan loop checks this flag and exits on next iteration
+  app.scanning    = false; // scan loop checks this flag and exits on next iteration
+  app.scanSending = false; // prevent onPoseResults from routing stale scan results
   ctx.clearRect(0, 0, canvas.width, canvas.height); // remove stale scan overlay immediately
 }
 
@@ -2166,6 +2354,18 @@ function saveCourtCalib(clipId, points) {
   } catch(e) {}
 }
 
+async function saveCourtCalibFirestore(clipId, points) {
+  const userId = fbAuth?.currentUser?.uid;
+  if (!userId || !clipId) return;
+  try {
+    await fbDb.collection('users').doc(userId)
+      .collection('videos').doc(clipId)
+      .update({ courtCalib: { points, savedAt: Date.now() } });
+  } catch(e) {
+    console.warn('[TA] Failed to save court calibration to Firestore:', e);
+  }
+}
+
 function applyCourtCalib(data) {
   courtCalib = data;
   const btn = document.getElementById('calib-btn');
@@ -2196,6 +2396,9 @@ function startCalibration() {
   videoEl.pause();
   if (videoEl.currentTime > 0.5) videoEl.currentTime = 0;
   document.getElementById('calib-overlay').classList.add('active');
+  document.getElementById('calib-ui').classList.add('active');
+  document.querySelector('.ctrl-row').style.display = 'none';
+  document.getElementById('scrub-track').style.display = 'none';
   canvas.style.pointerEvents = 'none';
   updateCalibStepLabel();
   drawCalibCanvas();
@@ -2247,18 +2450,26 @@ function cancelCalibration() {
   calib.closed  = false;
   calib.dragIdx = -1;
   document.getElementById('calib-overlay').classList.remove('active');
+  document.getElementById('calib-ui').classList.remove('active');
+  document.querySelector('.ctrl-row').style.display = '';
+  document.getElementById('scrub-track').style.display = '';
   canvas.style.pointerEvents = 'none';
   drawOverlay();
 }
 
 function confirmCalibration() {
   if (!calib.closed || calib.points.length < 3) return;
-  saveCourtCalib(app.activeClipId, calib.points.slice());
-  applyCourtCalib({ points: calib.points.slice() });
+  const pts = calib.points.slice();
+  saveCourtCalib(app.activeClipId, pts);
+  saveCourtCalibFirestore(app.activeClipId, pts); // async, non-blocking
+  applyCourtCalib({ points: pts });
   calib.active = false;
   calib.points = [];
   calib.closed = false;
   document.getElementById('calib-overlay').classList.remove('active');
+  document.getElementById('calib-ui').classList.remove('active');
+  document.querySelector('.ctrl-row').style.display = '';
+  document.getElementById('scrub-track').style.display = '';
   canvas.style.pointerEvents = 'none';
   drawOverlay();
 }
@@ -3101,7 +3312,7 @@ function processStroke(lms) {
   const wrist = (rW?.visibility ?? 0) >= (lW?.visibility ?? 0) ? rW : lW;
   if (!wrist || wrist.visibility < 0.4) return;
 
-  const vt = videoEl.currentTime;
+  const vt = app.recRecording ? app._recElapsed : videoEl.currentTime;
 
   // Pending serve check — must run before the cooldown guard so it fires during cooldown.
   // Check BOTH wrists — at contact MediaPipe sometimes favours the non-hitting arm.
@@ -3432,6 +3643,26 @@ function closeMobileSidebar() {
   document.getElementById('sidebar-backdrop').classList.remove('visible');
 }
 
+function toggleFullscreen() {
+  const panel = document.getElementById('video-panel');
+  const video = document.getElementById('video-el');
+  const isFs  = document.fullscreenElement || document.webkitFullscreenElement;
+  if (!isFs) {
+    if      (panel.requestFullscreen)       panel.requestFullscreen().catch(() => {});
+    else if (panel.webkitRequestFullscreen) panel.webkitRequestFullscreen();
+    else if (video.webkitEnterFullscreen)   video.webkitEnterFullscreen(); // iOS Safari
+  } else {
+    if      (document.exitFullscreen)       document.exitFullscreen();
+    else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+  }
+}
+function _updateFsBtn() {
+  const btn = document.getElementById('btn-fullscreen');
+  if (btn) btn.textContent = (document.fullscreenElement || document.webkitFullscreenElement) ? '✕' : '⛶';
+}
+document.addEventListener('fullscreenchange',       _updateFsBtn);
+document.addEventListener('webkitfullscreenchange', _updateFsBtn);
+
 function settingsSetHandedness(h) {
   if (playerHandedness === h) return;
   toggleHandedness();
@@ -3585,16 +3816,31 @@ function subscribeVideos(userId) {
       snap => {
         app.clips = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         renderClipList();
+        // Auto-open a clip after recording upload
+        if (app._pendingAutoSelect) {
+          const found = app.clips.find(c => c.id === app._pendingAutoSelect);
+          if (found) { app._pendingAutoSelect = null; selectClip(found.id); }
+        }
 
-        // Guard against the cache-then-server double-fire race: if Firestore just
-        // delivered real scan results for the active clip while a scan is already
-        // running (started from stale cache data), cancel the scan and use the
-        // cached results instead.
-        if (app.scanning && app.activeClipId) {
+        if (app.activeClipId) {
           const freshClip = app.clips.find(c => c.id === app.activeClipId);
-          if (freshClip?.scanResults?.length && (freshClip.scanVersion ?? 0) >= SCAN_VERSION) {
+
+          // Guard against the cache-then-server double-fire race: if Firestore just
+          // delivered real scan results for the active clip while a scan is already
+          // running (started from stale cache data), cancel the scan and use the
+          // cached results instead.
+          if (app.scanning && freshClip?.scanResults?.length && (freshClip.scanVersion ?? 0) >= SCAN_VERSION) {
             stopScan();
             loadCachedScan(freshClip);
+          }
+
+          // If the active clip now has courtCalib from Firestore but we don't have
+          // it locally yet (e.g. saved on another device after this clip was opened),
+          // apply and render it immediately.
+          if (!courtCalib && freshClip?.courtCalib?.points?.length >= 3) {
+            applyCourtCalib(freshClip.courtCalib);
+            saveCourtCalib(app.activeClipId, freshClip.courtCalib.points);
+            drawOverlay();
           }
         }
       },
@@ -3602,7 +3848,7 @@ function subscribeVideos(userId) {
     );
 }
 
-async function uploadClips(files) {
+async function uploadClips(files, { autoSelect = false, fromRecording = false } = {}) {
   const userId = fbAuth.currentUser?.uid;
   if (!userId) return;
 
@@ -3642,8 +3888,10 @@ async function uploadClips(files) {
             uploadedAt:  firebase.firestore.FieldValue.serverTimestamp(),
             storagePath: path,
             downloadURL,
+            ...(fromRecording ? { fromRecording: true } : {}),
           });
         app.uploads = app.uploads.filter(u => u.id !== uid);
+        if (autoSelect) app._pendingAutoSelect = uid;
         // Firestore listener will add the clip to app.clips
       }
     );
@@ -3723,9 +3971,11 @@ function selectClip(id) {
   stopLoop();
   videoEl.pause();
   videoEl.src = '';
-  app.landmarks    = null;
-  app.racquetBox   = null;
-  app.activeClipId = id;
+  app.landmarks      = null;
+  app.racquetBox     = null;
+  app.activeClipId   = id;
+  app.recMode        = false;   // ensure recording state is fully cleared
+  app.recRecording   = false;
 
   // Reset calibration UI for the new clip
   hideCalibBanner();
@@ -3790,12 +4040,17 @@ videoEl.addEventListener('loadeddata', () => {
   syncCanvas();
   resetBallMotion();
 
-  // Load or prompt court calibration
+  // Load or prompt court calibration — prefer Firestore, fall back to localStorage
   const clipId = app.activeClipId;
   if (clipId) {
-    const saved = loadCourtCalib(clipId);
+    const clip = app.clips.find(c => c.id === clipId);
+    const firestoreCalib = clip?.courtCalib?.points?.length >= 3 ? clip.courtCalib : null;
+    const saved = firestoreCalib || loadCourtCalib(clipId);
+    // Sync Firestore data back to localStorage if not already there
+    if (firestoreCalib && !loadCourtCalib(clipId)) saveCourtCalib(clipId, firestoreCalib.points);
     applyCourtCalib(saved);
     if (!saved) showCalibBanner();
+    drawOverlay(); // render polygon immediately without waiting for pose detection
   }
 
   tryStartScan(); // auto-scan once video and models are both ready
@@ -3833,7 +4088,7 @@ videoEl.addEventListener('seeked', () => {
   stroke.lastStrokeVT = videoEl.currentTime - stroke.COOLDOWN - 0.01;
   app.lastPausedMarkerVT = videoEl.currentTime; // only pause on markers after the seek point
   updateScrub();
-  if (app.modelsReady && !app.detecting) detectFrame();
+  if (app.modelsReady && !app.detecting && !app.scanning) detectFrame();
 });
 
 videoEl.addEventListener('timeupdate', () => {
@@ -3951,7 +4206,8 @@ window.addEventListener('resize', () => { syncCanvas(); drawOverlay(); });
 // ════════════════════════════════════════════════════════════
 function startLoop() {
   stopLoop();
-  app.detecting = false; // clear any stuck flag from a detection that ended mid-await
+  app.detecting   = false; // clear any stuck flag from a detection that ended mid-await
+  app.scanSending = false; // ensure stale scan routing doesn't discard live results
   loop();
 }
 
@@ -4045,12 +4301,41 @@ async function loop() {
 
   if (!app.detecting && app.modelsReady && !app.scanning) {
     app.detecting = true;
-    try {
-      await app.poseModel.send({ image: videoEl });
+    // Choose what to send to MediaPipe:
+    // - Finite-duration videos (regular uploads): videoEl works fine.
+    // - Infinity-duration videos (MediaRecorder output): WebGL texturing of a URL-based
+    //   video element with Infinity duration silently returns blank frames on some browsers.
+    //   Drawing to an offscreen canvas first bypasses that issue (canvas has no "duration").
+    let _sendImg = videoEl;
+    if (!isFinite(videoEl.duration)) {
+      const vw = videoEl.videoWidth, vh = videoEl.videoHeight;
+      if (vw && vh && videoEl.readyState >= 2) {
+        if (poseDetCanvas.width  !== vw) poseDetCanvas.width  = vw;
+        if (poseDetCanvas.height !== vh) poseDetCanvas.height = vh;
+        poseDetCtx.drawImage(videoEl, 0, 0);
+        _sendImg = poseDetCanvas;
+      }
+    }
+    // Fire-and-forget — mirrors _recLoop pattern which is proven to work for live camera.
+    // Using await here risks concurrent sends (old scan + new loop) that can permanently
+    // hang MediaPipe's internal queue. Fire-and-forget avoids that race.
+    app.poseModel.send({ image: _sendImg })
+      .catch(e => console.warn('[TA] Detection:', e))
+      .finally(() => {
+        app.detecting = false;
+        // FPS display
+        app.detFrames++;
+        const now = performance.now();
+        if (now - app.lastFpsUpdate > 1000) {
+          document.getElementById('det-fps').textContent =
+            Math.round(app.detFrames * 1000 / (now - app.lastFpsUpdate)) + ' fps';
+          app.detFrames = 0;
+          app.lastFpsUpdate = now;
+        }
+      });
 
-      if (app.frameCount % 20 === 0 && app.cocoModel && !app.scanning) {
-        const preds = await app.cocoModel.detect(videoEl);
-        // Only accept high-confidence detections that are near a visible wrist
+    if (app.frameCount % 20 === 0 && app.cocoModel && !app.scanning) {
+      app.cocoModel.detect(videoEl).then(preds => {
         const racquet = preds.find(p =>
           p.class === 'tennis racket' &&
           p.score > 0.6 &&
@@ -4064,21 +4349,8 @@ async function loop() {
         } else {
           app.racquetBox = null;
         }
-      }
-
-      // FPS display
-      app.detFrames++;
-      const now = performance.now();
-      if (now - app.lastFpsUpdate > 1000) {
-        document.getElementById('det-fps').textContent =
-          Math.round(app.detFrames * 1000 / (now - app.lastFpsUpdate)) + ' fps';
-        app.detFrames = 0;
-        app.lastFpsUpdate = now;
-      }
-    } catch (e) {
-      console.warn('[TA] Detection:', e);
+      }).catch(() => {});
     }
-    app.detecting = false;
   }
 
   app.rafId = requestAnimationFrame(loop);
@@ -4088,7 +4360,13 @@ async function detectFrame() {
   if (!app.modelsReady || app.detecting) return;
   app.detecting = true;
   try {
-    await app.poseModel.send({ image: videoEl });
+    const vw = videoEl.videoWidth, vh = videoEl.videoHeight;
+    if (vw && vh) {
+      if (poseDetCanvas.width  !== vw) poseDetCanvas.width  = vw;
+      if (poseDetCanvas.height !== vh) poseDetCanvas.height = vh;
+      poseDetCtx.drawImage(videoEl, 0, 0);
+    }
+    await app.poseModel.send({ image: vw ? poseDetCanvas : videoEl });
     // Also run racquet detection on seek/replay so the box appears immediately
     if (app.cocoModel) {
       const preds   = await app.cocoModel.detect(videoEl);
@@ -4111,6 +4389,15 @@ async function detectFrame() {
 //  POSE RESULTS → DRAW + STROKE DETECTION
 // ════════════════════════════════════════════════════════════
 function onPoseResults(results) {
+  // ── Recording mode: draw skeleton on rec canvas, run live stroke detection ──
+  if (app.recMode) {
+    app.landmarks = results.poseLandmarks || null;
+    if (app.landmarks && app.recRecording) processStroke(app.landmarks);
+    const rc = document.getElementById('rec-canvas');
+    if (rc && rc.width > 0) drawRecOverlay(rc.getContext('2d'), rc);
+    return;
+  }
+
   if (app.scanSending) {
     if (app.scanning && results.poseLandmarks) {
       app.scanPoses++;
@@ -4186,11 +4473,11 @@ function drawOverlay() {
       const lm = lms[i];
       if (!lm || lm.visibility < 0.35) continue;
       const pt = lmPx(lm);
-      const dotR = _mob ? (i < 11 ? 2 : 3) : (i < 11 ? 4 : 5);
+      const dotR = _mob ? (i < 11 ? 1 : 2) : (i < 11 ? 4 : 5);
       ctx.beginPath();
       ctx.arc(pt.x, pt.y, dotR, 0, Math.PI*2);
       ctx.fillStyle = jointColor(i); ctx.fill();
-      ctx.strokeStyle = '#00000066'; ctx.lineWidth = _mob ? 1 : 1.5; ctx.stroke();
+      if (!_mob) { ctx.strokeStyle = '#00000066'; ctx.lineWidth = 1.5; ctx.stroke(); }
     }
 
     // Angle labels (shown only when angle overlay is enabled)
@@ -4378,16 +4665,7 @@ function drawOverlay() {
       }
     }
 
-    // HUD — new circle count
-    {
-      const label = `New circles: ${newCircleCount}`;
-      const color = newCircleCount === 0 ? '#8b949e' : newCircleCount > 5 ? '#f85149' : '#d29922';
-      ctx.font = '11px monospace';
-      ctx.fillStyle = color;
-      ctx.shadowColor = '#000'; ctx.shadowBlur = 3;
-      ctx.fillText(label, 8, canvas.height - 8);
-      ctx.shadowBlur = 0;
-    }
+    // (new-circle HUD removed)
   }
 }
 
@@ -4396,6 +4674,70 @@ function jointColor(i) {
   if (i <= 16) return '#79c0ff';
   if (i <= 22) return '#56d364';
   return '#ffa657';
+}
+
+// ── Live recording overlay (drawn on #rec-canvas, not the main canvas) ──────
+function drawRecOverlay(rctx, rc) {
+  rctx.clearRect(0, 0, rc.width, rc.height);
+  const lms = app.landmarks;
+  if (!lms) return;
+  const W = rc.width, H = rc.height;
+
+  // Skeleton edges
+  rctx.lineWidth = 2;
+  rctx.strokeStyle = 'rgba(88,166,255,0.75)';
+  for (const [a, b] of SKELETON_EDGES) {
+    const pa = lms[a], pb = lms[b];
+    if (!pa || !pb || pa.visibility < 0.35 || pb.visibility < 0.35) continue;
+    rctx.beginPath();
+    rctx.moveTo(pa.x * W, pa.y * H);
+    rctx.lineTo(pb.x * W, pb.y * H);
+    rctx.stroke();
+  }
+
+  // Joints
+  for (let i = 0; i < lms.length; i++) {
+    const lm = lms[i];
+    if (!lm || lm.visibility < 0.35) continue;
+    const x = lm.x * W, y = lm.y * H;
+    const r = i < 11 ? 1 : 2;
+    rctx.beginPath(); rctx.arc(x, y, r, 0, Math.PI * 2);
+    rctx.fillStyle = jointColor(i); rctx.fill();
+  }
+
+  // Angle labels — always shown during recording with 4-tier color coding
+  const YELLOW_MARGIN = 15;
+  const drawRecLbl = (ai, bi, ci) => {
+    const a = lms[ai], b = lms[bi], c = lms[ci];
+    if (!a || !b || !c || a.visibility < 0.45 || b.visibility < 0.45 || c.visibility < 0.45) return;
+    const ang = angleDeg({x:a.x,y:a.y},{x:b.x,y:b.y},{x:c.x,y:c.y});
+    const isElbow   = bi === LM.L_ELBOW || bi === LM.R_ELBOW;
+    const goodMin   = isElbow ? 80  : 115;
+    const goodMax   = isElbow ? 155 : 165;
+    const plausKey  = isElbow ? 'elbow' : 'knee';
+    let color;
+    if (!plausible(ang, plausKey)) {
+      color = '#8b949e';  // grey  — unrealistic, likely detection artifact
+    } else if (ang >= goodMin && ang <= goodMax) {
+      color = '#3fb950';  // green — within good range
+    } else if ((ang >= goodMin - YELLOW_MARGIN && ang < goodMin) ||
+               (ang > goodMax && ang <= goodMax + YELLOW_MARGIN)) {
+      color = '#d29922';  // yellow — borderline
+    } else {
+      color = '#f85149';  // red   — outside good range
+    }
+    const px = b.x * W, py = b.y * H;
+    const txt = Math.round(ang) + '°';
+    rctx.font = 'bold 12px monospace';
+    rctx.strokeStyle = 'rgba(0,0,0,0.8)'; rctx.lineWidth = 3;
+    rctx.strokeText(txt, px + 6, py - 6);
+    rctx.fillStyle = color;
+    rctx.fillText(txt, px + 6, py - 6);
+  };
+  drawRecLbl(LM.L_SHOULDER, LM.L_ELBOW, LM.L_WRIST);
+  drawRecLbl(LM.R_SHOULDER, LM.R_ELBOW, LM.R_WRIST);
+  drawRecLbl(LM.L_HIP, LM.L_KNEE, LM.L_ANKLE);
+  drawRecLbl(LM.R_HIP, LM.R_KNEE, LM.R_ANKLE);
 }
 
 function drawAngleLabel(lms, ai, bi, ci) {
@@ -4766,40 +5108,7 @@ function renderFrozenFeedback() {
       </div>`;
   }
 
-  // Metrics table
-  const metricDefs = [
-    { key:'leftElbow',    label:'Left Elbow',    good:[80,155],  plausKey:'elbow'        },
-    { key:'rightElbow',   label:'Right Elbow',   good:[80,155],  plausKey:'elbow'        },
-    { key:'leftKnee',     label:'Left Knee',     good:[115,165], plausKey:'knee'         },
-    { key:'rightKnee',    label:'Right Knee',    good:[115,165], plausKey:'knee'         },
-    { key:'shoulderTilt', label:'Shoulder Tilt', good:[0,12],    plausKey:'shoulderTilt' },
-    { key:'trunkLean',    label:'Trunk Lean',    good:[0,14],    plausKey:'trunkLean'    },
-  ];
-  const hasM = metricDefs.some(d => m[d.key] !== undefined);
-  if (hasM) {
-    const isMobLayout = document.body.classList.contains('force-mobile') ||
-      (!document.body.classList.contains('force-desktop') && window.innerWidth <= 768);
-    // On mobile: collapsed by default; on desktop: always open
-    const openAttr = isMobLayout ? '' : ' open';
-    html += `<div class="fb-section"><details class="metrics-details"${openAttr}>
-      <summary class="fb-lbl metrics-summary">Joint Angles</summary>
-      <div class="metrics-tbl" style="margin-top:6px">`;
-    for (const def of metricDefs) {
-      if (m[def.key] === undefined) continue;
-      const val        = Math.round(m[def.key]);
-      const isOutlier  = !plausible(val, def.plausKey);
-      const cls        = isOutlier ? 'm-warn'
-                       : val >= def.good[0] && val <= def.good[1] ? 'm-good'
-                       : (val < def.good[0]*0.8 || val > def.good[1]*1.12) ? 'm-bad' : 'm-warn';
-      const flag       = isOutlier
-        ? `<span style="font-size:10px;color:#8b949e;margin-left:5px" title="Value outside normal physical range — may be a detection error">⚠ possibly inaccurate</span>`
-        : '';
-      html += `<div class="m-row"><span class="m-name">${def.label}</span><span class="m-val ${cls}">${val}°${flag}</span></div>`;
-    }
-    html += `</div></details></div>`;
-  }
-
-  // Feedback cards
+  // Feedback cards (shown first)
   if (cards.length) {
     html += `<div class="fb-section"><div class="fb-lbl">Coaching</div>`;
     for (const c of cards) {
@@ -4808,6 +5117,38 @@ function renderFrozenFeedback() {
     }
     html += `</div>`;
   }
+
+  // Metrics table (below coaching; collapsible on mobile)
+  const metricDefs = [
+    { key:'leftElbow',    label:'Left Elbow',    good:[80,155],  plausKey:'elbow'        },
+    { key:'rightElbow',   label:'Right Elbow',   good:[80,155],  plausKey:'elbow'        },
+    { key:'leftKnee',     label:'Left Knee',     good:[115,165], plausKey:'knee'         },
+    { key:'rightKnee',    label:'Right Knee',    good:[115,165], plausKey:'knee'         },
+    { key:'shoulderTilt', label:'Shoulder Tilt', good:[0,12],    plausKey:'shoulderTilt' },
+    { key:'trunkLean',    label:'Trunk Lean',    good:[0,14],    plausKey:'trunkLean'    },
+  ];
+  const isMobLayout = document.body.classList.contains('force-mobile') ||
+    (!document.body.classList.contains('force-desktop') && window.innerWidth <= 768);
+  const openAttr = isMobLayout ? '' : ' open';
+  html += `<div class="fb-section"><details class="metrics-details"${openAttr}>
+    <summary class="fb-lbl metrics-summary">Joint Angles</summary>
+    <div class="metrics-tbl" style="margin-top:6px">`;
+  for (const def of metricDefs) {
+    if (m[def.key] === undefined) {
+      html += `<div class="m-row"><span class="m-name">${def.label}</span><span class="m-val m-dim">low visibility</span></div>`;
+      continue;
+    }
+    const val        = Math.round(m[def.key]);
+    const isOutlier  = !plausible(val, def.plausKey);
+    const cls        = isOutlier ? 'm-warn'
+                     : val >= def.good[0] && val <= def.good[1] ? 'm-good'
+                     : (val < def.good[0]*0.8 || val > def.good[1]*1.12) ? 'm-bad' : 'm-warn';
+    const flag       = isOutlier
+      ? `<span style="font-size:10px;color:#8b949e;margin-left:5px" title="Value outside normal physical range — may be a detection error">⚠ possibly inaccurate</span>`
+      : '';
+    html += `<div class="m-row"><span class="m-name">${def.label}</span><span class="m-val ${cls}">${val}°${flag}</span></div>`;
+  }
+  html += `</div></details></div>`;
 
   scroll.innerHTML = html;
   hideUndoBar();
@@ -4833,23 +5174,27 @@ function setFeedbackWaiting(msg) {
 //  CONTROLS
 // ════════════════════════════════════════════════════════════
 function updateScrub() {
-  if (!videoEl.duration) return;
-  const pct = (videoEl.currentTime / videoEl.duration) * 100;
+  const dur = videoEl.duration;
+  if (!dur && dur !== 0) return; // undefined / NaN — metadata not loaded yet
+  const ct  = videoEl.currentTime;
+  const finite = isFinite(dur);
+  const pct = finite ? Math.min(100, (ct / dur) * 100) : 0;
   document.getElementById('scrub-fill').style.width = pct + '%';
   document.getElementById('scrub-thumb').style.left  = pct + '%';
-  document.getElementById('time-label').textContent =
-    `${fmtTime(videoEl.currentTime)} / ${fmtTime(videoEl.duration)}`;
+  document.getElementById('time-label').textContent  =
+    finite ? `${fmtTime(ct)} / ${fmtTime(dur)}` : fmtTime(ct);
 }
 
 const scrubTrack = document.getElementById('scrub-track');
 let scrubDrag = false;
 scrubTrack.addEventListener('click', e => {
+  if (!isFinite(videoEl.duration)) return; // can't seek by % with no known duration
   const r = scrubTrack.getBoundingClientRect();
   videoEl.currentTime = ((e.clientX - r.left) / r.width) * videoEl.duration;
 });
 scrubTrack.addEventListener('mousedown', () => scrubDrag = true);
 document.addEventListener('mousemove', e => {
-  if (!scrubDrag || !videoEl.duration) return;
+  if (!scrubDrag || !isFinite(videoEl.duration)) return;
   const r   = scrubTrack.getBoundingClientRect();
   const pct = Math.max(0, Math.min(1, (e.clientX - r.left) / r.width));
   videoEl.currentTime = pct * videoEl.duration;
@@ -4859,8 +5204,8 @@ document.addEventListener('mouseup', () => scrubDrag = false);
 document.getElementById('btn-pp').addEventListener('click',  () => videoEl.paused ? videoEl.play() : videoEl.pause());
 document.getElementById('btn-rw10').addEventListener('click', () => { videoEl.currentTime = Math.max(0, videoEl.currentTime - 10); });
 document.getElementById('btn-rw5').addEventListener('click',  () => { videoEl.currentTime = Math.max(0, videoEl.currentTime - 5); });
-document.getElementById('btn-ff5').addEventListener('click',  () => { videoEl.currentTime = Math.min(videoEl.duration, videoEl.currentTime + 5); });
-document.getElementById('btn-ff10').addEventListener('click', () => { videoEl.currentTime = Math.min(videoEl.duration, videoEl.currentTime + 10); });
+document.getElementById('btn-ff5').addEventListener('click',  () => { videoEl.currentTime = isFinite(videoEl.duration) ? Math.min(videoEl.duration, videoEl.currentTime + 5)  : videoEl.currentTime + 5; });
+document.getElementById('btn-ff10').addEventListener('click', () => { videoEl.currentTime = isFinite(videoEl.duration) ? Math.min(videoEl.duration, videoEl.currentTime + 10) : videoEl.currentTime + 10; });
 document.getElementById('speed-pick').addEventListener('change', e => { videoEl.playbackRate = parseFloat(e.target.value); });
 
 document.addEventListener('keydown', e => {
@@ -4888,6 +5233,354 @@ document.addEventListener('drop', e => {
   document.getElementById('drop-zone').classList.remove('drag-over');
   uploadClips(Array.from(e.dataTransfer.files));
 });
+
+// ════════════════════════════════════════════════════════════
+//  CAMERA RECORDING
+// ════════════════════════════════════════════════════════════
+(function() {
+  let _stream = null, _mr = null, _chunks = [], _timerInt = null, _secs = 0;
+  let _recStartMs = 0, _recEndMs = 0;  // performance.now() timestamps for exact duration
+  let _facing = 'environment';
+  let _zoom = 1, _zoomMin = 1, _zoomMax = 5, _hwZoom = false;
+  let _pinchDist0 = null, _zoom0 = 1;
+
+  function _fmt(s) { return Math.floor(s/60) + ':' + String(s%60).padStart(2,'0'); }
+
+  function _setErr(msg) {
+    const el = document.getElementById('rec-error');
+    el.textContent = msg; el.style.display = msg ? 'block' : 'none';
+  }
+
+  function _setRecording(on) {
+    const shutter = document.getElementById('rec-shutter');
+    shutter.classList.toggle('recording', on);
+    document.getElementById('rec-timer-badge').classList.toggle('active', on);
+    document.getElementById('rec-flip-btn').style.opacity = on ? '0.4' : '1';
+    document.getElementById('rec-flip-btn').style.pointerEvents = on ? 'none' : '';
+  }
+
+  async function _applyZoom(z) {
+    _zoom = Math.max(_zoomMin, Math.min(_zoomMax, z));
+    document.getElementById('rec-zoom-label').textContent = _zoom.toFixed(1).replace(/\.0$/, '') + '×';
+    if (_hwZoom && _stream) {
+      const track = _stream.getVideoTracks()[0];
+      const caps = track.getCapabilities?.();
+      if (caps?.zoom) {
+        const hw = caps.zoom.min + (_zoom - 1) / (_zoomMax - 1) * (caps.zoom.max - caps.zoom.min);
+        try { await track.applyConstraints({ advanced: [{ zoom: hw }] }); return; } catch(e) {}
+      }
+    }
+    // CSS scale fallback
+    document.getElementById('rec-preview').style.transform = `scale(${_zoom})`;
+  }
+
+  function _initZoom() {
+    _zoom = 1; _hwZoom = false;
+    document.getElementById('rec-preview').style.transform = '';
+    document.getElementById('rec-zoom-label').textContent = '1×';
+    if (!_stream) return;
+    const track = _stream.getVideoTracks()[0];
+    const caps = track.getCapabilities?.();
+    if (caps?.zoom) { _hwZoom = true; _zoomMax = Math.min(caps.zoom.max, 8); }
+    else { _zoomMax = 5; }
+  }
+
+  // Pinch-to-zoom touch handlers
+  function _onTouchStart(e) {
+    if (e.touches.length === 2) {
+      e.preventDefault();
+      _pinchDist0 = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY
+      );
+      _zoom0 = _zoom;
+    }
+  }
+  function _onTouchMove(e) {
+    if (e.touches.length === 2 && _pinchDist0) {
+      e.preventDefault();
+      const d = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY
+      );
+      _applyZoom(_zoom0 * (d / _pinchDist0));
+    }
+  }
+  function _onTouchEnd(e) { if (e.touches.length < 2) _pinchDist0 = null; }
+
+  async function _startPreview() {
+    _stopRecAnalysis();
+    _stopPreview();
+    _setErr('');
+    if (!window.isSecureContext) {
+      _setErr('Camera requires HTTPS. Open the app via your Firebase Hosting URL (https://…) or use an ngrok tunnel.');
+      return;
+    }
+    if (!navigator.mediaDevices?.getUserMedia) {
+      _setErr('Camera not supported in this browser. Try Chrome or Safari.');
+      return;
+    }
+    const attempts = [
+      { video: { facingMode: { ideal: _facing }, width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: true },
+      { video: { facingMode: { ideal: _facing } }, audio: true },
+      { video: true, audio: true },
+      { video: true }
+    ];
+    let lastErr = null;
+    for (const c of attempts) {
+      try {
+        _stream = await navigator.mediaDevices.getUserMedia(c);
+        const v = document.getElementById('rec-preview');
+        v.srcObject = _stream;
+        await v.play();
+        _initZoom();
+        return;
+      } catch(e) {
+        lastErr = e;
+        if (e.name === 'NotAllowedError') break;
+      }
+    }
+    const msg = lastErr.name === 'NotAllowedError'
+      ? 'Camera access denied. Please allow camera permissions in your browser settings.'
+      : lastErr.name === 'NotFoundError' ? 'No camera found on this device.'
+      : 'Could not access camera (' + (lastErr.name || lastErr.message) + ').';
+    _setErr(msg);
+  }
+
+  function _stopPreview() {
+    if (_stream) { _stream.getTracks().forEach(t => t.stop()); _stream = null; }
+    document.getElementById('rec-preview').srcObject = null;
+  }
+
+  function _checkRecOrientation() {
+    const hint = document.getElementById('rec-rotate-hint');
+    if (!hint) return;
+    const isPortrait = window.innerHeight > window.innerWidth;
+    // Show banner in portrait; hide when user rotates (but not if they dismissed it)
+    if (!isPortrait) {
+      hint.style.display = 'none';
+    } else if (hint.style.display === 'none' && hint.dataset.dismissed === '1') {
+      // user manually dismissed — don't re-show
+    } else {
+      hint.style.display = 'flex';
+      hint.dataset.dismissed = '';
+    }
+  }
+
+  // Dismiss button sets a flag so we don't re-show on minor resize events
+  window._recHintDismiss = function() {
+    const hint = document.getElementById('rec-rotate-hint');
+    if (hint) { hint.style.display = 'none'; hint.dataset.dismissed = '1'; }
+  };
+
+  window.openRecordModal = function() {
+    _secs = 0; _chunks = [];
+    document.getElementById('rec-timer-badge').textContent = '⏺ 0:00';
+    _setRecording(false);
+    _setErr('');
+    const hint = document.getElementById('rec-rotate-hint');
+    if (hint) { hint.dataset.dismissed = ''; }  // reset dismiss on open
+    document.getElementById('rec-screen').classList.add('visible');
+    _checkRecOrientation();
+    if (screen.orientation) {
+      screen.orientation.addEventListener('change', _checkRecOrientation);
+    } else {
+      window.addEventListener('resize', _checkRecOrientation);
+    }
+    _startPreview().then(() => {
+      if (app.modelsReady) _startRecAnalysis();
+    });
+    // Attach pinch listeners
+    const v = document.getElementById('rec-preview');
+    v.addEventListener('touchstart', _onTouchStart, { passive: false });
+    v.addEventListener('touchmove',  _onTouchMove,  { passive: false });
+    v.addEventListener('touchend',   _onTouchEnd);
+  };
+
+  window.closeRecordModal = function() {
+    if (_mr && _mr.state !== 'inactive') _mr.stop();
+    clearInterval(_timerInt);
+    _stopRecAnalysis();
+    _stopPreview();
+    _pendingBlob = null;
+    document.getElementById('rec-screen').classList.remove('visible', 'renaming');
+    _setRecording(false);
+    if (screen.orientation) {
+      screen.orientation.removeEventListener('change', _checkRecOrientation);
+    } else {
+      window.removeEventListener('resize', _checkRecOrientation);
+    }
+    const hint = document.getElementById('rec-rotate-hint');
+    if (hint) { hint.style.display = 'none'; hint.dataset.dismissed = ''; }
+    const v = document.getElementById('rec-preview');
+    v.removeEventListener('touchstart', _onTouchStart);
+    v.removeEventListener('touchmove',  _onTouchMove);
+    v.removeEventListener('touchend',   _onTouchEnd);
+  };
+
+  window.recFlipCamera = async function() {
+    if (_mr && _mr.state !== 'inactive') return;
+    _facing = _facing === 'environment' ? 'user' : 'environment';
+    await _startPreview();
+    if (app.modelsReady) _startRecAnalysis();
+  };
+
+  // Single button toggles record/stop
+  window.recToggle = function() {
+    if (_mr && _mr.state === 'recording') {
+      // Stop — capture exact timestamp before stop() so duration is precise
+      _recEndMs = performance.now();
+      app.recRecording = false;
+      _mr.stop();
+      clearInterval(_timerInt);
+      _setRecording(false);
+    } else {
+      // Start
+      if (!_stream) return;
+      _chunks = []; _secs = 0;
+      app._recElapsed = 0;
+      _recStartMs = performance.now();
+      const mimeType = ['video/webm;codecs=vp9','video/webm','video/mp4']
+        .find(t => MediaRecorder.isTypeSupported(t)) || '';
+      try { _mr = new MediaRecorder(_stream, mimeType ? { mimeType } : {}); }
+      catch(e) { _mr = new MediaRecorder(_stream); }
+      _mr.ondataavailable = e => { if (e.data?.size > 0) _chunks.push(e.data); };
+      _mr.onstop = _onStop;
+      _mr.start(200);
+      app.recRecording = true;
+      // Reset stroke state for fresh recording session
+      resetStrokeDetector();
+      stroke.markers = [];
+      _setRecording(true);
+      document.getElementById('rec-timer-badge').textContent = '⏺ 0:00';
+      _timerInt = setInterval(() => {
+        _secs++;
+        document.getElementById('rec-timer-badge').textContent = '⏺ ' + _fmt(_secs);
+      }, 1000);
+    }
+  };
+
+  let _pendingBlob = null, _pendingExt = null;
+  let _recRafId = null, _recDetecting = false;
+
+  function _startRecAnalysis() {
+    app.recMode = true;
+    _recDetecting = false;
+    const recVideo  = document.getElementById('rec-preview');
+    const recCanvas = document.getElementById('rec-canvas');
+
+    function _recLoop() {
+      if (!app.recMode) return;
+
+      // Update elapsed recording time
+      if (app.recRecording) {
+        app._recElapsed = (performance.now() - _recStartMs) / 1000;
+      }
+
+      // Fit canvas to video frame dimensions
+      if (recVideo.videoWidth && recCanvas.width !== recVideo.videoWidth) {
+        recCanvas.width  = recVideo.videoWidth;
+        recCanvas.height = recVideo.videoHeight;
+      }
+
+      // Send frame to pose model
+      if (app.poseModel && !_recDetecting && !app.scanSending && recVideo.readyState >= 2) {
+        _recDetecting = true;
+        app.poseModel.send({ image: recVideo })
+          .catch(() => {})
+          .finally(() => { _recDetecting = false; });
+      }
+
+      _recRafId = requestAnimationFrame(_recLoop);
+    }
+    _recLoop();
+  }
+
+  function _stopRecAnalysis() {
+    app.recMode      = false;
+    app.recRecording = false;
+    if (_recRafId) { cancelAnimationFrame(_recRafId); _recRafId = null; }
+    _recDetecting = false;
+    const rc = document.getElementById('rec-canvas');
+    if (rc) rc.getContext('2d').clearRect(0, 0, rc.width, rc.height);
+  }
+
+  // Patch the EBML Duration element in a WebM blob so the browser reports a
+  // finite duration instead of Infinity. MediaRecorder WebM typically omits
+  // duration or writes 0.
+  //
+  // IMPORTANT: we only search the EBML header section (before the first
+  // Cluster element, ID 0x1F43B675). The Duration element is always inside
+  // the Info block which precedes Cluster. Scanning the whole file risks a
+  // false-positive match inside VP8/VP9 bitstream data, which would corrupt
+  // a video block (manifests as random pixels and a frozen/truncated video).
+  async function _fixWebmDuration(blob, secs) {
+    if (!blob.type.includes('webm') || !(secs > 0)) return blob;
+    try {
+      const buf  = await blob.arrayBuffer();
+      const arr  = new Uint8Array(buf);
+      const view = new DataView(buf);
+      const ms   = secs * 1000;
+
+      // Locate the first Cluster element to bound our search
+      let limit = Math.min(arr.length - 12, 65536); // max 64 KB header scan
+      for (let i = 4; i < Math.min(arr.length - 4, 65536); i++) {
+        if (arr[i]===0x1F && arr[i+1]===0x43 && arr[i+2]===0xB6 && arr[i+3]===0x75) {
+          limit = i; break;
+        }
+      }
+
+      // Search for Duration (ID 0x44 0x89) only within the header section
+      for (let i = 4; i < limit; i++) {
+        if (arr[i] === 0x44 && arr[i + 1] === 0x89) {
+          if (arr[i + 2] === 0x88) { view.setFloat64(i + 3, ms, false); break; } // float64
+          if (arr[i + 2] === 0x84) { view.setFloat32(i + 3, ms, false); break; } // float32
+        }
+      }
+      return new Blob([arr], { type: blob.type });
+    } catch (e) { return blob; }
+  }
+
+  async function _onStop() {
+    if (!_chunks.length) return;
+    const mime = _mr?.mimeType || 'video/webm';
+    _pendingExt = mime.includes('mp4') ? 'mp4' : 'webm';
+    let blob = new Blob(_chunks, { type: mime });
+    // Fix WebM duration so the video is seekable and MediaPipe can scan it.
+    // Use the precise stop timestamp (not _secs, which is an integer counter).
+    const exactSecs = _recEndMs > _recStartMs ? (_recEndMs - _recStartMs) / 1000 : _secs;
+    if (_pendingExt === 'webm') blob = await _fixWebmDuration(blob, exactSecs);
+    _pendingBlob = blob;
+
+    // Stop camera — we no longer need it
+    _stopPreview();
+
+    // Pre-fill rename input with a timestamped default
+    const now = new Date();
+    const ts  = now.getFullYear() + '-'
+      + String(now.getMonth()+1).padStart(2,'0') + '-'
+      + String(now.getDate()).padStart(2,'0');
+    const inp = document.getElementById('rec-rename-input');
+    inp.value = 'Recording ' + ts;
+
+    document.getElementById('rec-screen').classList.add('renaming');
+    setTimeout(() => inp.select(), 50); // auto-select text for easy rename
+  }
+
+  window.recConfirmUpload = function() {
+    if (!_pendingBlob) return;
+    const inp  = document.getElementById('rec-rename-input');
+    const name = (inp.value.trim() || 'Recording') + '.' + _pendingExt;
+    const file = new File([_pendingBlob], name, { type: _pendingBlob.type });
+    _pendingBlob = null;
+    closeRecordModal();
+    // Show the analyzer section immediately with an "Uploading" overlay so the
+    // user gets feedback while the file transfers to Firebase Storage.
+    showSection('analyzer');
+    showLoading(true, 'Uploading…');
+    uploadClips([file], { autoSelect: true, fromRecording: true });
+  };
+})();
 
 // ════════════════════════════════════════════════════════════
 //  UI HELPERS
