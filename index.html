@@ -686,6 +686,20 @@
     .fb-card.tip  .fb-tag { color: #8957e5; }
     .fb-text { color: #c9d1d9; }
 
+    /* Collapsible feedback card (mobile): short text + show more/less */
+    .fb-card-detail > summary {
+      list-style: none; cursor: pointer; user-select: none;
+      display: flex; align-items: center; justify-content: space-between; gap: 8px;
+      color: #c9d1d9;
+    }
+    .fb-card-detail > summary::-webkit-details-marker { display: none; }
+    .fb-card-detail > summary::after {
+      content: 'show more ▸'; font-size: 10px; font-weight: 600; flex-shrink: 0;
+      color: #58a6ff; white-space: nowrap;
+    }
+    .fb-card-detail[open] > summary::after { content: 'show less ▾'; }
+    .fb-card-detail .fb-text { margin-top: 6px; }
+
     .score-badge {
       display: flex; align-items: center; justify-content: space-between;
       background: #21262d; border: 1px solid #30363d; border-radius: 8px; padding: 10px 12px;
@@ -698,6 +712,12 @@
     .score-bar-wrap { width: 80px; height: 6px; background: #30363d; border-radius: 3px; overflow: hidden; margin-bottom: 4px; }
     .score-bar { height: 100%; border-radius: 3px; transition: width 0.4s; }
     .score-desc { font-size: 10px; color: #8b949e; text-align: right; }
+
+    /* Compact top row (mobile): classification badge + mini score box side by side */
+    .fb-top-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
+    .fb-top-row .fb-stroke-label { margin-bottom: 0; flex-shrink: 0; }
+    .score-badge-mini { padding: 6px 14px; min-width: 0; }
+    .score-badge-mini .score-val { font-size: 22px; }
 
     /* Collapsible metrics section */
     .metrics-details > summary {
@@ -740,6 +760,21 @@
     }
     #rescan-btn:hover { border-color: #58a6ff; color: #58a6ff; }
     #rescan-btn:disabled { opacity: 0.4; cursor: default; }
+
+    /* Temporary diagnostics button — remove once mobile detection issue is resolved */
+    #diagnose-btn {
+      margin-left: 6px;
+      background: none;
+      border: 1px solid #30363d;
+      border-radius: 5px;
+      color: #8b949e;
+      font-size: 11px;
+      padding: 3px 9px;
+      cursor: pointer;
+      transition: border-color 0.15s, color 0.15s;
+      white-space: nowrap;
+    }
+    #diagnose-btn:hover { border-color: #58a6ff; color: #58a6ff; }
 
     /* Court calibration button */
     #calib-btn {
@@ -1051,6 +1086,30 @@
       cursor: pointer;
     }
     #camera-shift-bar button:hover { border-color: #58a6ff; color: #58a6ff; }
+
+    /* Detection-error warning bar */
+    #detect-error-bar {
+      display: none;
+      flex-shrink: 0;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      border-top: 1px solid #30363d;
+      font-size: 12px; color: #f85149;
+      background: rgba(248,81,73,0.06);
+    }
+    #detect-error-bar.visible { display: flex; }
+    #detect-error-bar .de-text { flex: 1; }
+    #detect-error-bar button {
+      background: none;
+      border: 1px solid #30363d;
+      border-radius: 5px;
+      color: #8b949e;
+      font-size: 11px;
+      padding: 3px 10px;
+      cursor: pointer;
+    }
+    #detect-error-bar button:hover { border-color: #58a6ff; color: #58a6ff; }
 
     /* Undo bar */
     #undo-bar {
@@ -1620,12 +1679,17 @@ service firebase.storage {
               <div class="live-dot off" id="live-dot"></div>
               Stroke Analysis
               <button id="rescan-btn" onclick="rescanVideo()" title="Clear results and re-scan the full video" disabled>↺ Rescan</button>
+              <button id="diagnose-btn" onclick="runDiagnostics()" title="Show detection diagnostics for this clip">🔍 Diagnose</button>
               <input type="checkbox" id="sbs-toggle" style="display:none">
             </div>
             <div id="feedback-scroll"></div>
             <div id="camera-shift-bar">
               <span class="cs-text">⚠️ Camera may have moved — ball detection unreliable</span>
               <button onclick="hideCameraShiftBar()">✕</button>
+            </div>
+            <div id="detect-error-bar">
+              <span class="de-text">⚠️ Detection error for this clip — overlay may be unavailable</span>
+              <button onclick="hideDetectErrorBar()">✕</button>
             </div>
             <div id="bad-pose-bar">
               <span class="bp-text">⚠️ Body landmarks appear unreliable</span>
@@ -1852,7 +1916,7 @@ const CONFIG_READY = FIREBASE_CONFIG.apiKey !== "YOUR_API_KEY";
 
 // Bump this whenever the scan/classification logic changes so stale cached
 // results are automatically discarded and a fresh scan runs.
-const SCAN_VERSION = 4;
+const SCAN_VERSION = 5;
 
 // ════════════════════════════════════════════════════════════
 //  DOM REFS
@@ -1929,6 +1993,8 @@ const app = {
   recMode:      false, // true while recording screen is open (camera running)
   recRecording: false, // true while MediaRecorder is actively recording
   _recElapsed:  0,     // seconds since recording started (used as virtual video time)
+  activeBlobUrl: null, // object URL for the current clip when loaded as a same-origin blob
+  clipSelectGeneration: 0, // bumped on every selectClip() call; bails stale async loads
 };
 
 // Separate stroke-detection state used only during the background scan
@@ -2292,6 +2358,60 @@ async function rescanVideo() {
   app.lastPausedMarkerVT = -Infinity;
   renderStrokeMarkers();
   startScan();
+}
+
+// Temporary, no-devtools-needed diagnostic for the mobile detection issue.
+// Remove once resolved.
+async function runDiagnostics() {
+  const lines = [];
+  lines.push(`UA: ${navigator.userAgent}`);
+  lines.push(`video: ${videoEl.videoWidth}x${videoEl.videoHeight} readyState=${videoEl.readyState} duration=${videoEl.duration} currentTime=${videoEl.currentTime.toFixed(2)} paused=${videoEl.paused}`);
+  lines.push(`clip fromRecording: ${!!app.activeClipIsRecording}`);
+  lines.push(`modelsReady: ${app.modelsReady}`);
+
+  const w = videoEl.videoWidth || 320, h = videoEl.videoHeight || 240;
+  let frameCanvas = null;
+  try {
+    frameCanvas = document.createElement('canvas');
+    frameCanvas.width = w; frameCanvas.height = h;
+    const cx = frameCanvas.getContext('2d');
+    cx.drawImage(videoEl, 0, 0, w, h);
+    const data = cx.getImageData(0, 0, w, h).data;
+    let sum = 0, max = 0;
+    for (let i = 0; i < data.length; i += 40) { sum += data[i]; if (data[i] > max) max = data[i]; }
+    lines.push(`drawImage OK — brightness sum=${sum} max=${max} (0/0 = blank frame)`);
+  } catch (e) {
+    lines.push(`drawImage ERROR: ${e.name}: ${e.message}`);
+  }
+
+  try {
+    const glCanvas = document.createElement('canvas');
+    const gl = glCanvas.getContext('webgl2') || glCanvas.getContext('webgl') || glCanvas.getContext('experimental-webgl');
+    lines.push(`WebGL context: ${gl ? (glCanvas.getContext('webgl2') ? 'webgl2 OK' : 'webgl1 OK') : 'FAILED to create'}`);
+  } catch (e) {
+    lines.push(`WebGL ERROR: ${e.name}: ${e.message}`);
+  }
+
+  if (frameCanvas && app.poseModel) {
+    try {
+      let gotResult = null;
+      app.poseModel.onResults(r => { gotResult = r; });
+      await Promise.race([
+        app.poseModel.send({ image: frameCanvas }),
+        new Promise(r => setTimeout(r, 3000)),
+      ]);
+      app.poseModel.onResults(onPoseResults); // restore the real handler
+      const n = gotResult?.poseLandmarks?.length || 0;
+      lines.push(`pose.send() resolved — landmarks found: ${n > 0 ? 'YES (' + n + ' pts)' : 'NO'}`);
+    } catch (e) {
+      app.poseModel.onResults(onPoseResults);
+      lines.push(`pose.send() ERROR: ${e.name}: ${e.message}`);
+    }
+  } else {
+    lines.push('pose.send() SKIPPED (no frame or model not ready)');
+  }
+
+  alert(lines.join('\n\n'));
 }
 
 // ════════════════════════════════════════════════════════════
@@ -3913,6 +4033,7 @@ async function deleteClip(clipId) {
       stopLoop();
       videoEl.pause();
       videoEl.src = '';
+      if (app.activeBlobUrl) { URL.revokeObjectURL(app.activeBlobUrl); app.activeBlobUrl = null; }
       app.landmarks = null;
       app.racquetBox = null;
       app.activeClipId = null;
@@ -3963,17 +4084,21 @@ document.getElementById('clip-list').addEventListener('click', e => {
   if (item) selectClip(item.dataset.id);
 });
 
-function selectClip(id) {
+async function selectClip(id) {
   const clip = app.clips.find(c => c.id === id);
   if (!clip) return;
+
+  const myGen = ++app.clipSelectGeneration;
 
   closeMobileSidebar();
   stopLoop();
   videoEl.pause();
   videoEl.src = '';
+  if (app.activeBlobUrl) { URL.revokeObjectURL(app.activeBlobUrl); app.activeBlobUrl = null; }
   app.landmarks      = null;
   app.racquetBox     = null;
   app.activeClipId   = id;
+  app.activeClipIsRecording = !!(clip.fromRecording || clip.name?.toLowerCase().endsWith('.webm'));
   app.recMode        = false;   // ensure recording state is fully cleared
   app.recRecording   = false;
 
@@ -4008,6 +4133,7 @@ function selectClip(id) {
   hideUndoBar();
   hideNoBodyBar();
   hideBadPoseBar();
+  hideDetectErrorBar();
   renderClipList();
   showSection('analyzer');
   showLoading(true, 'Loading video…');
@@ -4018,7 +4144,29 @@ function selectClip(id) {
   speedPick.value = '1';
   videoEl.playbackRate = 1;
 
-  videoEl.src = clip.downloadURL || clip.url;
+  const srcUrl = clip.downloadURL || clip.url;
+  if (app.activeClipIsRecording) {
+    // Loading the remote URL directly into <video crossorigin> leaves it subject to
+    // cross-origin canvas tainting — some mobile browsers (notably iOS Safari/WebKit)
+    // enforce this inconsistently for MediaRecorder-produced clips: playback works
+    // fine, but drawImage/getImageData (and MediaPipe's internal frame reads) throw
+    // "SecurityError: The operation is insecure." Fetching the bytes into a local
+    // Blob and playing that via an object URL sidesteps it — blob: URLs are always
+    // same-origin for canvas purposes regardless of how the data was fetched.
+    try {
+      const resp = await fetch(srcUrl);
+      const blob = await resp.blob();
+      if (myGen !== app.clipSelectGeneration) return; // superseded by a newer selectClip()
+      app.activeBlobUrl = URL.createObjectURL(blob);
+      videoEl.src = app.activeBlobUrl;
+    } catch (e) {
+      console.warn('[TA] Blob fetch failed, falling back to direct URL:', e);
+      if (myGen !== app.clipSelectGeneration) return;
+      videoEl.src = srcUrl;
+    }
+  } else {
+    videoEl.src = srcUrl;
+  }
   videoEl.load();
 }
 
@@ -4259,43 +4407,53 @@ async function loop() {
     app.lastDetVideoTime = curVT;
     const now = performance.now();
 
-    // Build search regions from recent valid detections.
-    // Expire entries older than BALL_RESET_MS, then pass all survivors as search circles.
-    // A cluster passes if it's near ANY of them — covers both sides of the court.
-    const SEARCH_RADIUS = 0.5;
-    ballLastValidList = ballLastValidList.filter(p => now - p.t <= BALL_RESET_MS);
-    const searchRegions = ballLastValidList.length > 0
-      ? ballLastValidList.map(p => ({ cx: p.x, cy: p.y, r: SEARCH_RADIUS }))
-      : null; // null = full-frame search until first detection
+    // Wrapped in try/catch: drawImage/getImageData on some mobile browsers can throw
+    // (e.g. a tainted-canvas SecurityError) for content that plays back just fine.
+    // An uncaught throw here would stop this async function before it reaches
+    // requestAnimationFrame(loop) below, silently killing ALL live detection
+    // (pose included) for the rest of playback — one bad frame shouldn't do that.
+    try {
+      // Build search regions from recent valid detections.
+      // Expire entries older than BALL_RESET_MS, then pass all survivors as search circles.
+      // A cluster passes if it's near ANY of them — covers both sides of the court.
+      const SEARCH_RADIUS = 0.5;
+      ballLastValidList = ballLastValidList.filter(p => now - p.t <= BALL_RESET_MS);
+      const searchRegions = ballLastValidList.length > 0
+        ? ballLastValidList.map(p => ({ cx: p.x, cy: p.y, r: SEARCH_RADIUS }))
+        : null; // null = full-frame search until first detection
 
-    ballDetCtx.drawImage(videoEl, 0, 0, 640, 360);
-    const playerMask = buildPlayerMask(app.landmarks, 640, 360);
-    const rawPos = detectBall(ballDetCtx, 640, 360, searchRegions, courtCalib?.points, playerMask);
+      ballDetCtx.drawImage(videoEl, 0, 0, 640, 360);
+      const playerMask = buildPlayerMask(app.landmarks, 640, 360);
+      const rawPos = detectBall(ballDetCtx, 640, 360, searchRegions, courtCalib?.points, playerMask);
 
-    // Record surviving transit pixels for the debug overlay.
-    if (!app.debugPixelHistory) app.debugPixelHistory = [];
-    if (app.debugTransitPixels && app.debugTransitPixels.length > 0)
-      app.debugPixelHistory.push({ pixels: app.debugTransitPixels, t: now });
-    app.debugPixelHistory = app.debugPixelHistory.filter(e => now - e.t < 2000);
+      // Record surviving transit pixels for the debug overlay.
+      if (!app.debugPixelHistory) app.debugPixelHistory = [];
+      if (app.debugTransitPixels && app.debugTransitPixels.length > 0)
+        app.debugPixelHistory.push({ pixels: app.debugTransitPixels, t: now });
+      app.debugPixelHistory = app.debugPixelHistory.filter(e => now - e.t < 2000);
 
-    // Record cluster bounding boxes for the cluster outline debug overlay.
-    if (!app.debugClusterHistory) app.debugClusterHistory = [];
-    if (app.debugClusters && app.debugClusters.length > 0)
-      app.debugClusterHistory.push({ clusters: app.debugClusters, t: now });
-    app.debugClusterHistory = app.debugClusterHistory.filter(e => now - e.t < 2000);
+      // Record cluster bounding boxes for the cluster outline debug overlay.
+      if (!app.debugClusterHistory) app.debugClusterHistory = [];
+      if (app.debugClusters && app.debugClusters.length > 0)
+        app.debugClusterHistory.push({ clusters: app.debugClusters, t: now });
+      app.debugClusterHistory = app.debugClusterHistory.filter(e => now - e.t < 2000);
 
-    // Accept detection directly — append to list, no velocity gating.
-    app.liveBallPos = rawPos || null;
-    if (rawPos) {
-      ballLastValidList.push({ x: rawPos.x, y: rawPos.y, t: now });
-      app.ballTrail.push({ x: rawPos.x, y: rawPos.y, t: now });
-      const TRAIL_MS = 3000;
-      app.ballTrail = app.ballTrail.filter(p => now - p.t < TRAIL_MS);
-    }
-    const dot = document.getElementById('ball-indicator-dot');
-    if (dot) {
-      dot.className = (!app.ballDetectionOverlay) ? 'inactive'
-                    : app.liveBallPos             ? 'active' : 'inactive';
+      // Accept detection directly — append to list, no velocity gating.
+      app.liveBallPos = rawPos || null;
+      if (rawPos) {
+        ballLastValidList.push({ x: rawPos.x, y: rawPos.y, t: now });
+        app.ballTrail.push({ x: rawPos.x, y: rawPos.y, t: now });
+        const TRAIL_MS = 3000;
+        app.ballTrail = app.ballTrail.filter(p => now - p.t < TRAIL_MS);
+      }
+      const dot = document.getElementById('ball-indicator-dot');
+      if (dot) {
+        dot.className = (!app.ballDetectionOverlay) ? 'inactive'
+                      : app.liveBallPos             ? 'active' : 'inactive';
+      }
+    } catch (e) {
+      console.warn('[TA] Ball detection:', e);
+      showDetectErrorBar();
     }
   }
 
@@ -4303,11 +4461,14 @@ async function loop() {
     app.detecting = true;
     // Choose what to send to MediaPipe:
     // - Finite-duration videos (regular uploads): videoEl works fine.
-    // - Infinity-duration videos (MediaRecorder output): WebGL texturing of a URL-based
-    //   video element with Infinity duration silently returns blank frames on some browsers.
-    //   Drawing to an offscreen canvas first bypasses that issue (canvas has no "duration").
+    // - Infinity-duration videos, or any MediaRecorder-produced clip regardless of
+    //   duration (fromRecording/.webm): feeding the <video> element straight into
+    //   MediaPipe's WebGL texture pipeline can silently yield blank/empty results on
+    //   some mobile browsers — notably when the SAME engine that recorded the clip is
+    //   the one decoding it back. Drawing to an offscreen canvas first sidesteps that;
+    //   plain 2D drawImage goes through a more consistent decode path across engines.
     let _sendImg = videoEl;
-    if (!isFinite(videoEl.duration)) {
+    if (!isFinite(videoEl.duration) || app.activeClipIsRecording) {
       const vw = videoEl.videoWidth, vh = videoEl.videoHeight;
       if (vw && vh && videoEl.readyState >= 2) {
         if (poseDetCanvas.width  !== vw) poseDetCanvas.width  = vw;
@@ -4838,55 +4999,55 @@ function generateFeedback(m) {
     if (!plausible(avg, 'knee')) {
       // skip — measurement is outside physical range, likely a detection error
     } else if (avg > 168)
-      cards.push({type:'warn', cat:'Stance', text:'Legs nearly straight — bend your knees for an athletic base. This is crucial for stability and power transfer.'});
+      cards.push({type:'warn', cat:'Stance', short:'Bend your knees more', text:'Legs nearly straight — bend your knees for an athletic base. This is crucial for stability and power transfer.'});
     else if (avg > 152)
-      cards.push({type:'warn', cat:'Stance', text:'Bend knees a bit more. A lower center of gravity improves balance and explosive movement.'});
+      cards.push({type:'warn', cat:'Stance', short:'Bend knees a bit more', text:'Bend knees a bit more. A lower center of gravity improves balance and explosive movement.'});
     else if (avg >= 115)
-      cards.push({type:'good', cat:'Stance', text:'Excellent knee bend. Your athletic position looks solid and ready to generate power.'});
+      cards.push({type:'good', cat:'Stance', short:'Great knee bend', text:'Excellent knee bend. Your athletic position looks solid and ready to generate power.'});
     else
-      cards.push({type:'info', cat:'Stance', text:'Very deep knee bend — make sure you can still transfer weight and move laterally.'});
+      cards.push({type:'info', cat:'Stance', short:'Very deep knee bend', text:'Very deep knee bend — make sure you can still transfer weight and move laterally.'});
   }
 
   // Elbow
   const elbow = m.rightElbow ?? m.leftElbow;
   if (elbow !== undefined && plausible(elbow, 'elbow')) {
     if (elbow > 162)
-      cards.push({type:'warn', cat:'Arm', text:'Arm too straight — keep a slight elbow bend to absorb pace and maintain control through contact.'});
+      cards.push({type:'warn', cat:'Arm', short:'Add slight elbow bend', text:'Arm too straight — keep a slight elbow bend to absorb pace and maintain control through contact.'});
     else if (elbow >= 100)
-      cards.push({type:'good', cat:'Arm', text:'Good arm extension with a natural elbow bend — solid for power transfer.'});
+      cards.push({type:'good', cat:'Arm', short:'Good arm extension', text:'Good arm extension with a natural elbow bend — solid for power transfer.'});
     else if (elbow >= 65)
-      cards.push({type:'info', cat:'Arm', text:'Compact elbow angle. Fine during backswing or follow-through — ensure full extension at contact.'});
+      cards.push({type:'info', cat:'Arm', short:'Compact elbow angle', text:'Compact elbow angle. Fine during backswing or follow-through — ensure full extension at contact.'});
     else
-      cards.push({type:'warn', cat:'Arm', text:'Elbow too bent at contact. Drive your arm forward through the ball for more power.'});
+      cards.push({type:'warn', cat:'Arm', short:'Extend arm at contact', text:'Elbow too bent at contact. Drive your arm forward through the ball for more power.'});
   }
 
   // Shoulder rotation
   if (m.shoulderTilt !== undefined && plausible(m.shoulderTilt, 'shoulderTilt')) {
     if (m.shoulderTilt < 7)
-      cards.push({type:'good', cat:'Rotation', text:'Great shoulder turn — you\'re well-rotated sideways to the net, loading the kinetic chain perfectly.'});
+      cards.push({type:'good', cat:'Rotation', short:'Great shoulder turn', text:'Great shoulder turn — you\'re well-rotated sideways to the net, loading the kinetic chain perfectly.'});
     else if (m.shoulderTilt < 16)
-      cards.push({type:'info', cat:'Rotation', text:'Moderate shoulder rotation. Turning more during prep can significantly add racquet-head speed.'});
+      cards.push({type:'info', cat:'Rotation', short:'Rotate shoulders more', text:'Moderate shoulder rotation. Turning more during prep can significantly add racquet-head speed.'});
     else
-      cards.push({type:'warn', cat:'Rotation', text:'Shoulders too open to the net. Rotate your upper body earlier in the backswing for cleaner mechanics.'});
+      cards.push({type:'warn', cat:'Rotation', short:'Rotate upper body earlier', text:'Shoulders too open to the net. Rotate your upper body earlier in the backswing for cleaner mechanics.'});
   }
 
   // Trunk lean
   if (m.trunkLean !== undefined && plausible(m.trunkLean, 'trunkLean')) {
     if (m.trunkLean <= 11)
-      cards.push({type:'good', cat:'Posture', text:'Good upright spine alignment through the stroke.'});
+      cards.push({type:'good', cat:'Posture', short:'Good upright posture', text:'Good upright spine alignment through the stroke.'});
     else if (m.trunkLean <= 23)
-      cards.push({type:'info', cat:'Posture', text:'Slight trunk lean — a little forward lean is natural; maintain overall balance.'});
+      cards.push({type:'info', cat:'Posture', short:'Slight trunk lean', text:'Slight trunk lean — a little forward lean is natural; maintain overall balance.'});
     else
-      cards.push({type:'warn', cat:'Posture', text:'Significant torso lean. Staying more upright improves consistency and reduces back stress.'});
+      cards.push({type:'warn', cat:'Posture', short:'Stay more upright', text:'Significant torso lean. Staying more upright improves consistency and reduces back stress.'});
   }
 
   // High arm (serve/overhead)
   const highArm = Math.max(m.rightWristHigh ?? -1, m.leftWristHigh ?? -1);
   if (highArm > 0.07)
-    cards.push({type:'tip', cat:'Shot Type', text:'High arm extension detected — looks like a serve or overhead. Focus on full trophy position and consistent toss.'});
+    cards.push({type:'tip', cat:'Shot Type', short:'Serve/overhead detected', text:'High arm extension detected — looks like a serve or overhead. Focus on full trophy position and consistent toss.'});
 
   if (app.racquetBox)
-    cards.push({type:'info', cat:'Racquet', text:'Racquet detected in frame. Tracking position relative to body for swing path analysis.'});
+    cards.push({type:'info', cat:'Racquet', short:'Racquet detected', text:'Racquet detected in frame. Tracking position relative to body for swing path analysis.'});
 
   return cards;
 }
@@ -4974,6 +5135,14 @@ function showCameraShiftBar() {
 
 function hideCameraShiftBar() {
   document.getElementById('camera-shift-bar').classList.remove('visible');
+}
+
+function showDetectErrorBar() {
+  document.getElementById('detect-error-bar').classList.add('visible');
+}
+
+function hideDetectErrorBar() {
+  document.getElementById('detect-error-bar').classList.remove('visible');
 }
 
 function showBadPoseBar() {
@@ -5084,28 +5253,49 @@ function renderFrozenFeedback() {
 
   let html = '';
 
+  const isMobLayout = document.body.classList.contains('force-mobile') ||
+    (!document.body.classList.contains('force-desktop') && window.innerWidth <= 768);
+
   // Stroke label with type
   const t = stroke.frozenResult.type;
   const typeLabel = t ? `${t.icon} ${t.type}` : 'Stroke';
-  html += `<div style="margin-bottom:10px">
-    <div class="fb-stroke-label"><div class="dot"></div> ${typeLabel}</div>
-  </div>`;
 
   // Score
+  let sc, bc, desc;
   if (score !== null) {
-    const sc = score >= 70 ? 'good' : score >= 45 ? 'ok' : 'bad';
-    const bc = score >= 70 ? '#3fb950' : score >= 45 ? '#d29922' : '#f85149';
-    const desc = score >= 80 ? 'Excellent' : score >= 65 ? 'Good' : score >= 50 ? 'Fair' : 'Needs work';
-    html += `<div class="fb-section"><div class="fb-lbl">Stroke Score</div>
-      <div class="score-badge">
-        <div><div class="score-lbl">Overall</div><div class="score-val ${sc}">${score}</div></div>
-        <div>
-          <div class="score-bar-wrap"><div class="score-bar" style="width:${score}%;background:${bc}"></div></div>
-          <div class="score-desc">${desc} &nbsp;/100</div>
+    sc   = score >= 70 ? 'good' : score >= 45 ? 'ok' : 'bad';
+    bc   = score >= 70 ? '#3fb950' : score >= 45 ? '#d29922' : '#f85149';
+    desc = score >= 80 ? 'Excellent' : score >= 65 ? 'Good' : score >= 50 ? 'Fair' : 'Needs work';
+  }
+
+  if (isMobLayout) {
+    // Compact layout: classification badge + mini score box share a row so
+    // the score no longer eats the full panel width on phones.
+    html += `<div class="fb-top-row">
+      <div class="fb-stroke-label"><div class="dot"></div> ${typeLabel}</div>
+      ${score !== null ? `<div class="score-badge score-badge-mini">
+        <div class="score-val ${sc}">${score}</div>
+      </div>` : ''}
+    </div>`;
+    if (score !== null && poseUnreliable) {
+      html += `<div style="margin:-4px 0 12px;font-size:11px;color:#8b949e;display:flex;align-items:center;gap:5px"><span style="color:#d29922">⚠</span> Body landmarks were unreliable during this stroke — score may be inaccurate</div>`;
+    }
+  } else {
+    html += `<div style="margin-bottom:10px">
+      <div class="fb-stroke-label"><div class="dot"></div> ${typeLabel}</div>
+    </div>`;
+    if (score !== null) {
+      html += `<div class="fb-section"><div class="fb-lbl">Stroke Score</div>
+        <div class="score-badge">
+          <div><div class="score-lbl">Overall</div><div class="score-val ${sc}">${score}</div></div>
+          <div>
+            <div class="score-bar-wrap"><div class="score-bar" style="width:${score}%;background:${bc}"></div></div>
+            <div class="score-desc">${desc} &nbsp;/100</div>
+          </div>
         </div>
-      </div>
-      ${poseUnreliable ? `<div style="margin-top:7px;font-size:11px;color:#8b949e;display:flex;align-items:center;gap:5px"><span style="color:#d29922">⚠</span> Body landmarks were unreliable during this stroke — score may be inaccurate</div>` : ''}
-      </div>`;
+        ${poseUnreliable ? `<div style="margin-top:7px;font-size:11px;color:#8b949e;display:flex;align-items:center;gap:5px"><span style="color:#d29922">⚠</span> Body landmarks were unreliable during this stroke — score may be inaccurate</div>` : ''}
+        </div>`;
+    }
   }
 
   // Feedback cards (shown first)
@@ -5113,7 +5303,17 @@ function renderFrozenFeedback() {
     html += `<div class="fb-section"><div class="fb-lbl">Coaching</div>`;
     for (const c of cards) {
       const tag = c.type === 'good' ? '✓ Great' : c.type === 'warn' ? '⚠ Improve' : c.type === 'tip' ? '💡 Tip' : 'ℹ Info';
-      html += `<div class="fb-card ${c.type}"><div class="fb-tag">${c.cat} — ${tag}</div><div class="fb-text">${c.text}</div></div>`;
+      if (isMobLayout) {
+        const tagWord = c.type === 'good' ? 'Great' : c.type === 'warn' ? 'Improve' : c.type === 'tip' ? 'Tip' : 'Info';
+        html += `<div class="fb-card ${c.type}">
+          <details class="fb-card-detail">
+            <summary class="fb-card-summary"><span class="fb-tag">${c.cat} — ${tagWord}</span> ${c.short || c.text}</summary>
+            <div class="fb-text">${c.text}</div>
+          </details>
+        </div>`;
+      } else {
+        html += `<div class="fb-card ${c.type}"><div class="fb-tag">${c.cat} — ${tag}</div><div class="fb-text">${c.text}</div></div>`;
+      }
     }
     html += `</div>`;
   }
@@ -5127,8 +5327,6 @@ function renderFrozenFeedback() {
     { key:'shoulderTilt', label:'Shoulder Tilt', good:[0,12],    plausKey:'shoulderTilt' },
     { key:'trunkLean',    label:'Trunk Lean',    good:[0,14],    plausKey:'trunkLean'    },
   ];
-  const isMobLayout = document.body.classList.contains('force-mobile') ||
-    (!document.body.classList.contains('force-desktop') && window.innerWidth <= 768);
   const openAttr = isMobLayout ? '' : ' open';
   html += `<div class="fb-section"><details class="metrics-details"${openAttr}>
     <summary class="fb-lbl metrics-summary">Joint Angles</summary>
