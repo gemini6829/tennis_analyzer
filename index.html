@@ -284,6 +284,12 @@
       color: #484f58; font-size: 13px; line-height: 1.5;
     }
     .clip-empty-icon { font-size: 28px; margin-bottom: 8px; }
+    .clip-loading-spinner {
+      width: 22px; height: 22px; margin: 0 auto 10px;
+      border: 3px solid #30363d; border-top-color: #58a6ff;
+      border-radius: 50%;
+      animation: spin 0.75s linear infinite;
+    }
 
     /* Stored clip item */
     .clip-item {
@@ -313,16 +319,27 @@
     }
     .clip-item.active .clip-name { color: #79c0ff; }
     .clip-meta { font-size: 11px; color: #8b949e; margin-top: 1px; }
-    .clip-del {
-      flex-shrink: 0; display: none;
+    /* Rename / delete — hover-reveal on desktop (mouse can hover); always shown
+       on touch/mobile viewports since there's no hover to reveal them with. */
+    .clip-actions {
+      flex-shrink: 0; display: none; align-items: center; gap: 1px;
+    }
+    .clip-item:hover .clip-actions { display: flex; }
+    .clip-act {
       background: none; border: none;
-      color: #f85149; cursor: pointer;
-      font-size: 15px; line-height: 1;
-      padding: 2px 4px; border-radius: 3px;
+      cursor: pointer; line-height: 1;
+      padding: 3px 5px; border-radius: 3px;
+      display: flex; align-items: center; justify-content: center;
       transition: background 0.12s;
     }
-    .clip-item:hover .clip-del { display: flex; align-items: center; }
+    .clip-rename { color: #8b949e; font-size: 13px; }
+    .clip-rename:hover { background: rgba(88,166,255,0.15); color: #58a6ff; }
+    .clip-del { color: #f85149; font-size: 15px; }
     .clip-del:hover { background: rgba(248,81,73,0.15); }
+    @media (max-width: 768px) {
+      .clip-actions { display: flex; }
+    }
+    body.force-mobile .clip-actions { display: flex !important; }
 
     /* Upload progress item */
     .clip-upload {
@@ -403,10 +420,83 @@
     .dz-btn-rec:hover { border-color: #f85149; color: #f85149; background: rgba(248,81,73,0.08); }
 
     /* ── RECORDING SCREEN ────────────────────────────── */
-    #rec-screen { z-index: 200; background: #000; flex-direction: column; }
+    /* top: 52px (not inset:0) leaves the app header — logo, model status, Settings — visible above it */
+    #rec-screen { z-index: 200; background: #000; flex-direction: column; top: 52px; }
+    /* Split like analysis mode: camera on one side, live feedback on the other.
+       Grid (not flex) so the three panes can be rearranged per breakpoint —
+       including tucking the controls bar under the camera in phone landscape —
+       just by reassigning grid-template-areas, with no HTML changes. */
+    #rec-layout {
+      flex: 1; width: 100%; overflow: hidden; min-height: 0;
+      display: grid;
+      grid-template-columns: 1fr 76px 300px;
+      grid-template-rows: 1fr;
+      grid-template-areas: "video controls feedback";
+    }
+    #rec-video-panel {
+      grid-area: video; position: relative; overflow: hidden; background: #000; min-width: 0; min-height: 0;
+    }
     #rec-preview {
-      flex: 1; width: 100%; object-fit: cover; display: block;
+      position: absolute; inset: 0;
+      width: 100%; height: 100%; object-fit: cover; display: block;
       transform-origin: center center; touch-action: none;
+    }
+    /* Record / flip-camera buttons live here — a real layout strip next to the
+       camera and the feedback panel, not an overlay on top of the camera view. */
+    #rec-controls-bar {
+      grid-area: controls;
+      background: #161b22; border-left: 1px solid #30363d;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      gap: 16px;
+    }
+    #rec-feedback-panel {
+      grid-area: feedback;
+      background: #161b22; border-left: 1px solid #30363d;
+      display: flex; flex-direction: column; overflow: hidden; min-height: 0;
+    }
+    #rec-feedback-scroll { flex: 1; overflow-y: auto; padding: 10px; }
+    /* Portrait phone: stack video on top, controls strip, feedback below */
+    @media (max-width: 768px) and (orientation: portrait) {
+      #rec-layout {
+        grid-template-columns: 1fr;
+        grid-template-rows: auto auto 1fr;
+        grid-template-areas: "video" "controls" "feedback";
+      }
+      #rec-video-panel { aspect-ratio: 16 / 9; }
+      #rec-controls-bar {
+        flex-direction: row;
+        border-left: none; border-top: 1px solid #30363d; border-bottom: 1px solid #30363d;
+        padding: 12px 0; gap: 28px;
+      }
+      #rec-feedback-panel { border-left: none; }
+    }
+    /* Phone landscape: camera + controls strip form a left column, feedback on the right.
+       Gated on height only (not width) — phone landscape widths vary widely (many
+       modern phones exceed 900px), but short height reliably distinguishes a phone
+       from a tablet/laptop in landscape, which stays tall regardless of width. */
+    @media (max-height: 500px) and (orientation: landscape) {
+      #rec-screen { top: 44px; } /* app header shrinks to 44px at this breakpoint */
+      #rec-layout {
+        /* Video column width is set in real pixels by _syncRecLandscapeLayout()
+           (computed from measured heights — CSS aspect-ratio/auto-track sizing
+           isn't reliable enough across mobile browsers for this). "auto" here is
+           only a pre-JS fallback so there's no flash of a zero-width column. */
+        grid-template-columns: auto 1fr;
+        grid-template-rows: 1fr auto;
+        grid-template-areas: "video feedback" "controls feedback";
+      }
+      #rec-video-panel { aspect-ratio: 16 / 9; } /* fallback only, see above */
+      #rec-controls-bar {
+        flex-direction: row;
+        border-left: none; border-top: 1px solid #30363d;
+        padding: 5px 0; gap: 16px;
+      }
+      #rec-controls-bar .rec-shutter { width: 40px; height: 40px; border-width: 2px; }
+      #rec-controls-bar .rec-shutter-inner { width: 15px; height: 15px; }
+      #rec-controls-bar .rec-shutter.recording .rec-shutter-inner { width: 13px; height: 13px; border-radius: 3px; }
+      #rec-controls-bar .rec-side-btn { width: 30px; height: 30px; font-size: 13px; }
+      #rec-feedback-panel { min-height: 0; min-width: 0; }
+      #rec-feedback-scroll { padding: 10px; }
     }
     .rec-top-bar {
       position: absolute; top: 0; left: 0; right: 0;
@@ -432,15 +522,9 @@
       padding: 5px 10px; border-radius: 20px;
       min-width: 44px; text-align: center;
     }
-    .rec-bottom-bar {
-      position: absolute; bottom: 0; left: 0; right: 0;
-      display: flex; align-items: center; justify-content: space-around;
-      padding: 24px 32px max(24px, env(safe-area-inset-bottom));
-      background: linear-gradient(to top, rgba(0,0,0,0.7) 0%, transparent 100%);
-    }
     .rec-shutter {
-      width: 72px; height: 72px; border-radius: 50%;
-      border: 4px solid #fff; background: #f85149;
+      width: 54px; height: 54px; border-radius: 50%;
+      border: 3px solid #f0f3f6; background: #f85149;
       cursor: pointer; display: flex; align-items: center; justify-content: center;
       transition: transform 0.1s, background 0.15s;
       flex-shrink: 0;
@@ -448,24 +532,40 @@
     .rec-shutter:active { transform: scale(0.92); }
     .rec-shutter.recording { background: transparent; }
     .rec-shutter-inner {
-      width: 26px; height: 26px; border-radius: 50%; background: #f85149;
+      width: 20px; height: 20px; border-radius: 50%; background: #f85149;
       transition: border-radius 0.2s, width 0.2s, height 0.2s;
     }
     .rec-shutter.recording .rec-shutter-inner {
-      border-radius: 5px; width: 22px; height: 22px;
+      border-radius: 4px; width: 17px; height: 17px;
     }
     .rec-side-btn {
-      width: 48px; height: 48px; border-radius: 50%;
-      background: rgba(0,0,0,0.45); border: 1px solid rgba(255,255,255,0.25);
-      color: #fff; font-size: 20px; cursor: pointer;
+      width: 40px; height: 40px; border-radius: 50%;
+      background: #21262d; border: 1px solid #30363d;
+      color: #c9d1d9; font-size: 17px; cursor: pointer;
       display: flex; align-items: center; justify-content: center;
+      transition: border-color 0.15s, color 0.15s;
     }
+    .rec-side-btn:hover { border-color: #58a6ff; color: #58a6ff; }
     .rec-error {
-      position: absolute; bottom: 130px; left: 16px; right: 16px;
+      position: absolute; bottom: 16px; left: 16px; right: 16px;
       padding: 10px 14px; font-size: 13px; color: #ffa198;
       background: rgba(0,0,0,0.75); border: 1px solid rgba(248,81,73,0.4);
       border-radius: 8px; text-align: center; display: none;
     }
+    /* Voice-feedback debug badge — flashes when a stroke tries to speak,
+       so it's visible whether the feature fired even if no audio came out. */
+    .rec-voice-badge {
+      position: absolute; top: 100px; left: 50%; transform: translateX(-50%);
+      z-index: 24; max-width: calc(100% - 32px);
+      background: rgba(0,0,0,0.78); border: 1px solid rgba(88,166,255,0.4);
+      border-radius: 20px; padding: 7px 14px;
+      color: #79c0ff; font-size: 13px; text-align: center;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+      opacity: 0; pointer-events: none;
+      transition: opacity 0.15s;
+    }
+    .rec-voice-badge.visible { opacity: 1; }
+    .rec-voice-badge.error { color: #ffa198; border-color: rgba(248,81,73,0.4); }
     /* Rename overlay — shown after recording stops */
     .rec-rename-overlay {
       position: absolute; inset: 0;
@@ -499,10 +599,14 @@
       font-size: 13px; cursor: pointer; text-align: center;
     }
     .rec-rename-cancel:active { color: #c9d1d9; }
-    /* Recording canvas overlay */
+    /* Recording canvas overlay — object-fit must match #rec-preview's "cover" so the
+       skeleton/joint-angle drawing (rendered at the camera's native resolution) scales
+       and crops identically to the video underneath instead of stretching to fill a
+       panel with a different aspect ratio (which squashes it vertically/horizontally). */
     #rec-canvas {
       position: absolute; inset: 0;
       width: 100%; height: 100%;
+      object-fit: cover;
       pointer-events: none;
     }
     /* Rotate-to-landscape hint (non-blocking banner, portrait only) */
@@ -521,7 +625,7 @@
       font-size: 15px; cursor: pointer; padding: 0; line-height: 1;
     }
     /* State switching */
-    #rec-screen.renaming .rec-bottom-bar { display: none; }
+    #rec-screen.renaming #rec-controls-bar { display: none; }
     #rec-screen.renaming .rec-top-bar { display: none; }
     #rec-screen.renaming .rec-rename-overlay { display: flex; }
     .fmt-tags { margin-top: 18px; display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; }
@@ -761,21 +865,6 @@
     #rescan-btn:hover { border-color: #58a6ff; color: #58a6ff; }
     #rescan-btn:disabled { opacity: 0.4; cursor: default; }
 
-    /* Temporary diagnostics button — remove once mobile detection issue is resolved */
-    #diagnose-btn {
-      margin-left: 6px;
-      background: none;
-      border: 1px solid #30363d;
-      border-radius: 5px;
-      color: #8b949e;
-      font-size: 11px;
-      padding: 3px 9px;
-      cursor: pointer;
-      transition: border-color 0.15s, color 0.15s;
-      white-space: nowrap;
-    }
-    #diagnose-btn:hover { border-color: #58a6ff; color: #58a6ff; }
-
     /* Court calibration button */
     #calib-btn {
       background: none;
@@ -992,7 +1081,7 @@
       display: none;
       position: fixed; inset: 0;
       background: rgba(0,0,0,0.6);
-      z-index: 200;
+      z-index: 210; /* above #rec-screen (200) so Settings still opens visibly while recording */
       align-items: center;
       justify-content: center;
     }
@@ -1181,6 +1270,24 @@
     body.force-mobile #video-viewport           { flex: none !important; aspect-ratio: 16 / 9 !important; }
     body.force-mobile #feedback-panel           { width: 100% !important; flex: none !important; min-height: 280px !important; border-left: none !important; border-top: 1px solid #30363d !important; }
     body.force-mobile #feedback-scroll          { overflow-y: auto !important; max-height: 55vh !important; }
+    /* Larger text for outdoor/on-court readability */
+    body.force-mobile .panel-hdr                { font-size: 15px !important; }
+    body.force-mobile .sidebar-hdr              { font-size: 12px !important; }
+    body.force-mobile .clip-name                { font-size: 14px !important; }
+    body.force-mobile .clip-meta                { font-size: 12px !important; }
+    body.force-mobile .clip-empty               { font-size: 14px !important; }
+    body.force-mobile .fb-lbl                   { font-size: 12px !important; }
+    body.force-mobile .fb-card                  { font-size: 14px !important; }
+    body.force-mobile .fb-tag                   { font-size: 11px !important; }
+    body.force-mobile .fb-stroke-label          { font-size: 13px !important; }
+    body.force-mobile .fb-waiting               { font-size: 14px !important; }
+    body.force-mobile .score-lbl                { font-size: 12px !important; }
+    body.force-mobile .score-val                { font-size: 30px !important; }
+    body.force-mobile .score-badge-mini .score-val { font-size: 26px !important; }
+    body.force-mobile .score-desc               { font-size: 11px !important; }
+    body.force-mobile .m-row                    { font-size: 14px !important; }
+    body.force-mobile .metrics-summary::after,
+    body.force-mobile .fb-card-detail > summary::after { font-size: 11px !important; }
     body.force-mobile .ctrl-btn                 { min-width: 38px !important; min-height: 38px !important; font-size: 18px !important; padding: 8px !important; }
     body.force-mobile .ctrl-btn.big             { font-size: 22px !important; }
     body.force-mobile .btn-5s                   { display: none !important; }
@@ -1277,6 +1384,25 @@
       }
       #feedback-scroll { overflow-y: auto; max-height: 55vh; }
 
+      /* Larger text for outdoor/on-court readability */
+      .panel-hdr { font-size: 15px; }
+      .sidebar-hdr { font-size: 12px; }
+      .clip-name { font-size: 14px; }
+      .clip-meta { font-size: 12px; }
+      .clip-empty { font-size: 14px; }
+      .fb-lbl { font-size: 12px; }
+      .fb-card { font-size: 14px; }
+      .fb-tag { font-size: 11px; }
+      .fb-stroke-label { font-size: 13px; }
+      .fb-waiting { font-size: 14px; }
+      .score-lbl { font-size: 12px; }
+      .score-val { font-size: 30px; }
+      .score-badge-mini .score-val { font-size: 26px; }
+      .score-desc { font-size: 11px; }
+      .m-row { font-size: 14px; }
+      .metrics-summary::after,
+      .fb-card-detail > summary::after { font-size: 11px; }
+
       /* Bigger touch targets; hide ±5s buttons */
       .ctrl-btn { min-width: 38px; min-height: 38px; font-size: 18px; padding: 8px; }
       .ctrl-btn.big { font-size: 22px; }
@@ -1332,6 +1458,25 @@
         border-top: none;
       }
       #feedback-scroll { max-height: none; overflow-y: auto; }
+
+      /* Larger text for outdoor/on-court readability */
+      .panel-hdr { font-size: 15px; }
+      .sidebar-hdr { font-size: 12px; }
+      .clip-name { font-size: 14px; }
+      .clip-meta { font-size: 12px; }
+      .clip-empty { font-size: 14px; }
+      .fb-lbl { font-size: 12px; }
+      .fb-card { font-size: 14px; }
+      .fb-tag { font-size: 11px; }
+      .fb-stroke-label { font-size: 13px; }
+      .fb-waiting { font-size: 14px; }
+      .score-lbl { font-size: 12px; }
+      .score-val { font-size: 30px; }
+      .score-badge-mini .score-val { font-size: 26px; }
+      .score-desc { font-size: 11px; }
+      .m-row { font-size: 14px; }
+      .metrics-summary::after,
+      .fb-card-detail > summary::after { font-size: 11px; }
 
       /* Compact controls for landscape; hide ±5s buttons */
       #controls-bar { padding: 6px 10px 8px; }
@@ -1588,8 +1733,8 @@ service firebase.storage {
       <div class="sidebar-hdr">Video Library</div>
       <div id="clip-list">
         <div class="clip-empty">
-          <div class="clip-empty-icon">🎬</div>
-          No videos yet.<br>Upload one to start.
+          <div class="clip-loading-spinner"></div>
+          Loading videos…
         </div>
       </div>
       <button class="sidebar-add-btn" id="sidebar-add-btn">📁 Add Video</button>
@@ -1679,7 +1824,6 @@ service firebase.storage {
               <div class="live-dot off" id="live-dot"></div>
               Stroke Analysis
               <button id="rescan-btn" onclick="rescanVideo()" title="Clear results and re-scan the full video" disabled>↺ Rescan</button>
-              <button id="diagnose-btn" onclick="runDiagnostics()" title="Show detection diagnostics for this clip">🔍 Diagnose</button>
               <input type="checkbox" id="sbs-toggle" style="display:none">
             </div>
             <div id="feedback-scroll"></div>
@@ -1780,6 +1924,18 @@ service firebase.storage {
         </label>
       </div>
 
+      <!-- Voice feedback (recording mode) -->
+      <div class="sm-row">
+        <div class="sm-row-label">
+          Voice feedback
+          <small>Speak a short coaching tip out loud after each stroke while recording</small>
+        </div>
+        <label class="sbs-switch">
+          <input type="checkbox" id="sm-voice-toggle" onchange="settingsToggleVoiceFeedback(this.checked)" checked>
+          <span class="sbs-slider"></span>
+        </label>
+      </div>
+
       <!-- Play area -->
       <div class="sm-row">
         <div class="sm-row-label">
@@ -1794,27 +1950,40 @@ service firebase.storage {
 </div>
 
 <!-- Recording Screen -->
-<div id="rec-screen" class="screen" style="position:fixed;inset:0;">
-  <video id="rec-preview" autoplay playsinline muted></video>
-  <canvas id="rec-canvas"></canvas>
-  <!-- Non-blocking portrait tip — user can dismiss or just keep recording -->
-  <div id="rec-rotate-hint">
-    <span class="rh-icon">⟳</span>
-    <span>Landscape recommended</span>
-    <button class="rh-dismiss" onclick="_recHintDismiss()" title="Dismiss">✕</button>
-  </div>
-  <div class="rec-top-bar">
-    <button class="rec-close-btn" onclick="closeRecordModal()" title="Close">✕</button>
-    <div class="rec-timer-badge" id="rec-timer-badge">⏺ 0:00</div>
-    <div class="rec-zoom-label" id="rec-zoom-label">1×</div>
-  </div>
-  <div class="rec-error" id="rec-error"></div>
-  <div class="rec-bottom-bar">
-    <button class="rec-side-btn" id="rec-flip-btn" onclick="recFlipCamera()" title="Flip camera">🔄</button>
-    <button class="rec-shutter" id="rec-shutter" onclick="recToggle()" title="Record / Stop">
-      <div class="rec-shutter-inner"></div>
-    </button>
-    <div style="width:48px"></div>
+<div id="rec-screen" class="screen">
+  <div id="rec-layout">
+    <div id="rec-video-panel">
+      <video id="rec-preview" autoplay playsinline muted></video>
+      <canvas id="rec-canvas"></canvas>
+      <!-- Non-blocking portrait tip — user can dismiss or just keep recording -->
+      <div id="rec-rotate-hint">
+        <span class="rh-icon">⟳</span>
+        <span>Rotate phone to record horizontally</span>
+        <button class="rh-dismiss" onclick="_recHintDismiss()" title="Dismiss">✕</button>
+      </div>
+      <div class="rec-top-bar">
+        <button class="rec-close-btn" onclick="closeRecordModal()" title="Close">✕</button>
+        <div class="rec-timer-badge" id="rec-timer-badge">⏺ 0:00</div>
+        <div class="rec-zoom-label" id="rec-zoom-label">1×</div>
+      </div>
+      <div class="rec-error" id="rec-error"></div>
+      <!-- Debug indicator: shows what the voice-feedback feature is doing after
+           each stroke, so you can tell "never fired" from "fired but no audio". -->
+      <div class="rec-voice-badge" id="rec-voice-badge"></div>
+    </div>
+    <div id="rec-controls-bar">
+      <button class="rec-side-btn" id="rec-flip-btn" onclick="recFlipCamera()" title="Flip camera">🔄</button>
+      <button class="rec-shutter" id="rec-shutter" onclick="recToggle()" title="Record / Stop">
+        <div class="rec-shutter-inner"></div>
+      </button>
+    </div>
+    <div id="rec-feedback-panel">
+      <div class="panel-hdr">
+        <div class="live-dot" id="rec-live-dot"></div>
+        Live Feedback
+      </div>
+      <div id="rec-feedback-scroll"></div>
+    </div>
   </div>
   <div class="rec-rename-overlay">
     <div class="rec-rename-card">
@@ -1989,12 +2158,16 @@ const app = {
   // Settings
   ballDetectionOverlay: true, // when false, circles are hidden but detection still runs
   angleOverlay: false,        // when true, joint angle numbers are drawn on the skeleton
+  voiceFeedbackEnabled: true, // when true, short coaching tips are read aloud after each stroke while recording
   // Recording
   recMode:      false, // true while recording screen is open (camera running)
   recRecording: false, // true while MediaRecorder is actively recording
   _recElapsed:  0,     // seconds since recording started (used as virtual video time)
   activeBlobUrl: null, // object URL for the current clip when loaded as a same-origin blob
   clipSelectGeneration: 0, // bumped on every selectClip() call; bails stale async loads
+  activeVideoSrcUrl: null, // last URL assigned to videoEl.src, used to retry on transient load errors
+  videoRetryCount: 0,      // consecutive retry attempts for the current clip's video element
+  clipsLoaded: false,      // true once the first Firestore videos snapshot has arrived — distinguishes "still loading" from "genuinely no videos"
 };
 
 // Separate stroke-detection state used only during the background scan
@@ -2358,60 +2531,6 @@ async function rescanVideo() {
   app.lastPausedMarkerVT = -Infinity;
   renderStrokeMarkers();
   startScan();
-}
-
-// Temporary, no-devtools-needed diagnostic for the mobile detection issue.
-// Remove once resolved.
-async function runDiagnostics() {
-  const lines = [];
-  lines.push(`UA: ${navigator.userAgent}`);
-  lines.push(`video: ${videoEl.videoWidth}x${videoEl.videoHeight} readyState=${videoEl.readyState} duration=${videoEl.duration} currentTime=${videoEl.currentTime.toFixed(2)} paused=${videoEl.paused}`);
-  lines.push(`clip fromRecording: ${!!app.activeClipIsRecording}`);
-  lines.push(`modelsReady: ${app.modelsReady}`);
-
-  const w = videoEl.videoWidth || 320, h = videoEl.videoHeight || 240;
-  let frameCanvas = null;
-  try {
-    frameCanvas = document.createElement('canvas');
-    frameCanvas.width = w; frameCanvas.height = h;
-    const cx = frameCanvas.getContext('2d');
-    cx.drawImage(videoEl, 0, 0, w, h);
-    const data = cx.getImageData(0, 0, w, h).data;
-    let sum = 0, max = 0;
-    for (let i = 0; i < data.length; i += 40) { sum += data[i]; if (data[i] > max) max = data[i]; }
-    lines.push(`drawImage OK — brightness sum=${sum} max=${max} (0/0 = blank frame)`);
-  } catch (e) {
-    lines.push(`drawImage ERROR: ${e.name}: ${e.message}`);
-  }
-
-  try {
-    const glCanvas = document.createElement('canvas');
-    const gl = glCanvas.getContext('webgl2') || glCanvas.getContext('webgl') || glCanvas.getContext('experimental-webgl');
-    lines.push(`WebGL context: ${gl ? (glCanvas.getContext('webgl2') ? 'webgl2 OK' : 'webgl1 OK') : 'FAILED to create'}`);
-  } catch (e) {
-    lines.push(`WebGL ERROR: ${e.name}: ${e.message}`);
-  }
-
-  if (frameCanvas && app.poseModel) {
-    try {
-      let gotResult = null;
-      app.poseModel.onResults(r => { gotResult = r; });
-      await Promise.race([
-        app.poseModel.send({ image: frameCanvas }),
-        new Promise(r => setTimeout(r, 3000)),
-      ]);
-      app.poseModel.onResults(onPoseResults); // restore the real handler
-      const n = gotResult?.poseLandmarks?.length || 0;
-      lines.push(`pose.send() resolved — landmarks found: ${n > 0 ? 'YES (' + n + ' pts)' : 'NO'}`);
-    } catch (e) {
-      app.poseModel.onResults(onPoseResults);
-      lines.push(`pose.send() ERROR: ${e.name}: ${e.message}`);
-    }
-  } else {
-    lines.push('pose.send() SKIPPED (no frame or model not ready)');
-  }
-
-  alert(lines.join('\n\n'));
 }
 
 // ════════════════════════════════════════════════════════════
@@ -3519,6 +3638,12 @@ function processStroke(lms) {
           const avg   = avgMetrics(stroke.buffer);
           const score = scoreStroke(avg);
           const type  = classifyStrokeType(stroke.buffer);
+
+          // Voice feedback fires here, independent of the scan/marker reconciliation
+          // below — recording has no background scan to sync against, so waiting on
+          // that logic would sometimes silently skip speaking.
+          if (app.recRecording && app.voiceFeedbackEnabled) speakStrokeFeedback(avg);
+
           // Use the scan marker's pre-computed score so the feedback panel and
           // marker colour are always the same number. Live playback updates the
           // type only (dense 30fps frames give better classification accuracy).
@@ -3647,7 +3772,7 @@ function initFirebase() {
       loadUserSettings(user.uid);
     } else {
       if (unsubVideos) { unsubVideos(); unsubVideos = null; }
-      app.clips = []; app.uploads = [];
+      app.clips = []; app.uploads = []; app.clipsLoaded = false;
       showAuth();
     }
   });
@@ -3703,6 +3828,8 @@ function openSettings() {
   document.getElementById('sm-ball-toggle').checked = app.ballDetectionOverlay;
   // Sync angle overlay
   document.getElementById('sm-angle-toggle').checked = app.angleOverlay;
+  // Sync voice feedback
+  document.getElementById('sm-voice-toggle').checked = app.voiceFeedbackEnabled;
   // Play area button — disabled if no clip loaded, label reflects current state
   const calibBtn = document.getElementById('sm-calib-btn');
   calibBtn.disabled = !app.activeClipId;
@@ -3804,6 +3931,14 @@ function settingsToggleBallOverlay(on) {
 
 function settingsToggleAngleOverlay(on) {
   app.angleOverlay = on;
+}
+
+function settingsToggleVoiceFeedback(on) {
+  app.voiceFeedbackEnabled = on;
+  if (!on) {
+    if (window.speechSynthesis) speechSynthesis.cancel();
+    document.getElementById('rec-voice-badge')?.classList.remove('visible');
+  }
 }
 
 function toggleBallIndicator() {
@@ -3928,12 +4063,14 @@ document.getElementById('logout-btn').addEventListener('click', async () => {
 // ════════════════════════════════════════════════════════════
 function subscribeVideos(userId) {
   if (unsubVideos) unsubVideos();
+  app.clipsLoaded = false;
   unsubVideos = fbDb
     .collection('users').doc(userId)
     .collection('videos')
     .orderBy('uploadedAt', 'desc')
     .onSnapshot(
       snap => {
+        app.clipsLoaded = true;
         app.clips = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         renderClipList();
         // Auto-open a clip after recording upload
@@ -4032,7 +4169,7 @@ async function deleteClip(clipId) {
     if (app.activeClipId === clipId) {
       stopLoop();
       videoEl.pause();
-      videoEl.src = '';
+      videoEl.removeAttribute('src');
       if (app.activeBlobUrl) { URL.revokeObjectURL(app.activeBlobUrl); app.activeBlobUrl = null; }
       app.landmarks = null;
       app.racquetBox = null;
@@ -4045,10 +4182,31 @@ async function deleteClip(clipId) {
   }
 }
 
+async function renameClip(clipId) {
+  const userId = fbAuth.currentUser?.uid;
+  if (!userId) return;
+  const clip = app.clips.find(c => c.id === clipId);
+  if (!clip) return;
+
+  const input = prompt('Rename video', clip.name || '');
+  if (input === null) return; // cancelled
+  const newName = input.trim();
+  if (!newName || newName === clip.name) return;
+
+  try {
+    await fbDb.collection('users').doc(userId).collection('videos').doc(clipId).update({ name: newName });
+    // Firestore listener will refresh app.clips and re-render
+  } catch (err) {
+    alert('Rename failed: ' + err.message);
+  }
+}
+
 function renderClipList() {
   const list = document.getElementById('clip-list');
   if (!app.clips.length && !app.uploads.length) {
-    list.innerHTML = `<div class="clip-empty"><div class="clip-empty-icon">🎬</div>No videos yet.<br>Upload one to start.</div>`;
+    list.innerHTML = app.clipsLoaded
+      ? `<div class="clip-empty"><div class="clip-empty-icon">🎬</div>No videos yet.<br>Upload one to start.</div>`
+      : `<div class="clip-empty"><div class="clip-loading-spinner"></div>Loading videos…</div>`;
     return;
   }
 
@@ -4071,13 +4229,18 @@ function renderClipList() {
         <div class="clip-name" title="${escHtml(c.name)}">${escHtml(c.name)}</div>
         <div class="clip-meta">${c._duration ? fmtTime(c._duration) + ' · ' : ''}${fmtSize(c.size || 0)}</div>
       </div>
-      <button class="clip-del" data-clip-id="${c.id}" title="Delete">×</button>
+      <div class="clip-actions">
+        <button class="clip-act clip-rename" data-clip-id="${c.id}" title="Rename">✎</button>
+        <button class="clip-act clip-del" data-clip-id="${c.id}" title="Delete">×</button>
+      </div>
     </div>`).join('');
 
   list.innerHTML = uploadHTML + clipsHTML;
 }
 
 document.getElementById('clip-list').addEventListener('click', e => {
+  const renameBtn = e.target.closest('.clip-rename');
+  if (renameBtn) { e.stopPropagation(); renameClip(renameBtn.dataset.clipId); return; }
   const delBtn = e.target.closest('.clip-del');
   if (delBtn) { e.stopPropagation(); deleteClip(delBtn.dataset.clipId); return; }
   const item = e.target.closest('.clip-item');
@@ -4093,7 +4256,7 @@ async function selectClip(id) {
   closeMobileSidebar();
   stopLoop();
   videoEl.pause();
-  videoEl.src = '';
+  videoEl.removeAttribute('src');
   if (app.activeBlobUrl) { URL.revokeObjectURL(app.activeBlobUrl); app.activeBlobUrl = null; }
   app.landmarks      = null;
   app.racquetBox     = null;
@@ -4145,6 +4308,8 @@ async function selectClip(id) {
   videoEl.playbackRate = 1;
 
   const srcUrl = clip.downloadURL || clip.url;
+  app.activeVideoSrcUrl = srcUrl;
+  app.videoRetryCount = 0;
   if (app.activeClipIsRecording) {
     // Loading the remote URL directly into <video crossorigin> leaves it subject to
     // cross-origin canvas tainting — some mobile browsers (notably iOS Safari/WebKit)
@@ -4273,18 +4438,36 @@ videoEl.addEventListener('timeupdate', () => {
   }
 });
 
+const VIDEO_LOAD_MAX_RETRIES = 4;
+const VIDEO_LOAD_RETRY_DELAY_MS = 1500;
+
 videoEl.addEventListener('error', () => {
   const err = videoEl.error;
-  if (err?.code === MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED || err?.code === MediaError.MEDIA_ERR_NETWORK) {
-    showLoading(false);
-    document.getElementById('feedback-scroll').innerHTML = `
-      <div class="fb-waiting">
-        <div class="fb-waiting-icon">⚠️</div>
-        Video failed to load.<br><br>
-        This is likely a CORS issue with Firebase Storage.<br>
-        See setup instructions (Step 4) to configure CORS for your bucket.
-      </div>`;
+  if (err?.code !== MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED && err?.code !== MediaError.MEDIA_ERR_NETWORK) return;
+  if (!videoEl.getAttribute('src')) return; // no real source assigned (e.g. element was just cleared) — nothing to retry
+
+  // These errors are often transient (e.g. a Firebase Storage download URL that
+  // isn't fully propagated yet) and resolve on their own a few seconds later, so
+  // retry quietly behind the loading spinner instead of alarming the user.
+  if (app.activeVideoSrcUrl && app.videoRetryCount < VIDEO_LOAD_MAX_RETRIES) {
+    app.videoRetryCount++;
+    const myGen = app.clipSelectGeneration;
+    showLoading(true, 'Loading video, please wait…');
+    setTimeout(() => {
+      if (myGen !== app.clipSelectGeneration || !app.activeVideoSrcUrl) return; // superseded by a newer selectClip()
+      videoEl.src = app.activeVideoSrcUrl;
+      videoEl.load();
+    }, VIDEO_LOAD_RETRY_DELAY_MS);
+    return;
   }
+
+  showLoading(false);
+  document.getElementById('feedback-scroll').innerHTML = `
+    <div class="fb-waiting">
+      <div class="fb-waiting-icon">⚠️</div>
+      Couldn't load this video.<br><br>
+      Please check your connection and try again.
+    </div>`;
 });
 
 // ════════════════════════════════════════════════════════════
@@ -4459,23 +4642,20 @@ async function loop() {
 
   if (!app.detecting && app.modelsReady && !app.scanning) {
     app.detecting = true;
-    // Choose what to send to MediaPipe:
-    // - Finite-duration videos (regular uploads): videoEl works fine.
-    // - Infinity-duration videos, or any MediaRecorder-produced clip regardless of
-    //   duration (fromRecording/.webm): feeding the <video> element straight into
-    //   MediaPipe's WebGL texture pipeline can silently yield blank/empty results on
-    //   some mobile browsers — notably when the SAME engine that recorded the clip is
-    //   the one decoding it back. Drawing to an offscreen canvas first sidesteps that;
-    //   plain 2D drawImage goes through a more consistent decode path across engines.
+    // Always draw to an offscreen canvas first rather than feeding the <video>
+    // element straight into MediaPipe's WebGL texture pipeline — that can silently
+    // yield blank/empty results on some mobile browsers, not just for recordings/
+    // infinite-duration clips as originally assumed here (regular finite-duration
+    // uploads can hit it too, which showed up as feedback/scores never updating
+    // during mobile playback). The background scan already does this unconditionally
+    // for every clip type and doesn't have this problem — match that here.
     let _sendImg = videoEl;
-    if (!isFinite(videoEl.duration) || app.activeClipIsRecording) {
-      const vw = videoEl.videoWidth, vh = videoEl.videoHeight;
-      if (vw && vh && videoEl.readyState >= 2) {
-        if (poseDetCanvas.width  !== vw) poseDetCanvas.width  = vw;
-        if (poseDetCanvas.height !== vh) poseDetCanvas.height = vh;
-        poseDetCtx.drawImage(videoEl, 0, 0);
-        _sendImg = poseDetCanvas;
-      }
+    const vw = videoEl.videoWidth, vh = videoEl.videoHeight;
+    if (vw && vh && videoEl.readyState >= 2) {
+      if (poseDetCanvas.width  !== vw) poseDetCanvas.width  = vw;
+      if (poseDetCanvas.height !== vh) poseDetCanvas.height = vh;
+      poseDetCtx.drawImage(videoEl, 0, 0);
+      _sendImg = poseDetCanvas;
     }
     // Fire-and-forget — mirrors _recLoop pattern which is proven to work for live camera.
     // Using await here risks concurrent sends (old scan + new loop) that can permanently
@@ -4556,6 +4736,10 @@ function onPoseResults(results) {
     if (app.landmarks && app.recRecording) processStroke(app.landmarks);
     const rc = document.getElementById('rec-canvas');
     if (rc && rc.width > 0) drawRecOverlay(rc.getContext('2d'), rc);
+    // Live joint-angle feedback panel — throttled to every few frames so DOM
+    // updates don't compete with the pose-detection loop for CPU.
+    app._recFeedbackFrames = (app._recFeedbackFrames || 0) + 1;
+    if (app._recFeedbackFrames % 5 === 0) renderRecFeedback(app.landmarks);
     return;
   }
 
@@ -4844,8 +5028,16 @@ function drawRecOverlay(rctx, rc) {
   if (!lms) return;
   const W = rc.width, H = rc.height;
 
+  // The canvas's drawing buffer is sized to the camera's native resolution
+  // (often 1080p+), but on a phone it's displayed at a much smaller physical
+  // size than that — CSS scales the whole buffer down, so lines/dots drawn at
+  // desktop-appropriate widths end up looking hairline-thin on mobile. Scale
+  // them up on mobile to compensate.
+  const _mob = document.body.classList.contains('force-mobile') ||
+    (!document.body.classList.contains('force-desktop') && window.innerWidth <= 768);
+
   // Skeleton edges
-  rctx.lineWidth = 2;
+  rctx.lineWidth = _mob ? 5 : 2;
   rctx.strokeStyle = 'rgba(88,166,255,0.75)';
   for (const [a, b] of SKELETON_EDGES) {
     const pa = lms[a], pb = lms[b];
@@ -4861,9 +5053,10 @@ function drawRecOverlay(rctx, rc) {
     const lm = lms[i];
     if (!lm || lm.visibility < 0.35) continue;
     const x = lm.x * W, y = lm.y * H;
-    const r = i < 11 ? 1 : 2;
+    const r = (i < 11 ? 1 : 2) * (_mob ? 3 : 1);
     rctx.beginPath(); rctx.arc(x, y, r, 0, Math.PI * 2);
     rctx.fillStyle = jointColor(i); rctx.fill();
+    if (_mob) { rctx.strokeStyle = '#00000066'; rctx.lineWidth = 1.5; rctx.stroke(); }
   }
 
   // Angle labels — always shown during recording with 4-tier color coding
@@ -5052,6 +5245,67 @@ function generateFeedback(m) {
   return cards;
 }
 
+// Debug badge for the voice-feedback feature — shows what's happening at each
+// stage (fired / actually started playing / errored) so "not hearing it" can be
+// narrowed down to "never triggered" vs "browser silently failed to speak" vs
+// "device is muted / silent switch on" (the last of which the browser can't
+// report — SpeechSynthesis has no volume/mute-state API).
+// iOS Safari only allows SpeechSynthesis to actually produce audio if the first
+// speak() call in the page session happens synchronously inside a real user-gesture
+// handler (a tap). speakStrokeFeedback() is triggered asynchronously from a pose-
+// detection callback, which has no gesture in its call stack — iOS silently queues
+// those calls without ever playing them (no onstart, no onerror, nothing). Priming
+// with a near-silent utterance from an actual onclick handler (see openRecordModal)
+// unlocks speech for the rest of the session so later async calls work normally.
+function _primeVoiceSynthesis() {
+  if (!window.speechSynthesis) return;
+  try {
+    const primer = new SpeechSynthesisUtterance(' ');
+    primer.volume = 0.01;
+    speechSynthesis.speak(primer);
+  } catch (e) {}
+}
+
+let _voiceBadgeTimeout = null;
+function _setVoiceBadge(text, isError) {
+  const el = document.getElementById('rec-voice-badge');
+  if (!el) return;
+  clearTimeout(_voiceBadgeTimeout);
+  el.textContent = text;
+  el.classList.toggle('error', !!isError);
+  el.classList.add('visible');
+  _voiceBadgeTimeout = setTimeout(() => el.classList.remove('visible'), 4000);
+}
+
+// Speaks the single most useful coaching tip for a just-completed stroke, while
+// recording. Only one short line per stroke — reading out every card would talk
+// over the player's next swing. Actionable ('warn') feedback takes priority over
+// neutral notes so the spoken tip is always the most useful one available.
+const VOICE_FEEDBACK_PRIORITY = { warn: 0, tip: 1, info: 2, good: 3 };
+function speakStrokeFeedback(m) {
+  if (!window.speechSynthesis) {
+    _setVoiceBadge('🔇 Speech synthesis not supported in this browser', true);
+    return;
+  }
+  const cards = generateFeedback(m);
+  if (!cards.length) {
+    _setVoiceBadge('🔊 No tip generated for this stroke (nothing to say)', false);
+    return;
+  }
+  const best = cards.reduce((a, b) =>
+    (VOICE_FEEDBACK_PRIORITY[b.type] ?? 4) < (VOICE_FEEDBACK_PRIORITY[a.type] ?? 4) ? b : a);
+  const text = best.short || best.text;
+  if (!text) return;
+
+  speechSynthesis.cancel(); // don't queue behind a previous stroke's still-playing line
+  const utter = new SpeechSynthesisUtterance(text);
+  _setVoiceBadge('🔊 Requested: “' + text + '”', false);
+  utter.onstart = () => _setVoiceBadge('🔊 Speaking: “' + text + '”', false);
+  utter.onerror = (e) => _setVoiceBadge('⚠️ Voice error (' + e.error + '): “' + text + '”', true);
+  utter.onend   = () => _setVoiceBadge('✓ Finished: “' + text + '”', false);
+  speechSynthesis.speak(utter);
+}
+
 function scoreStroke(m) {
   let pts = 0, max = 0;
   // Outlier values (outside physical plausibility bounds) get 10% weight —
@@ -5208,6 +5462,114 @@ function hideUndoBar() {
   document.getElementById('undo-bar').classList.remove('visible');
 }
 
+// Renders coaching cards, shared between the frozen post-stroke feedback panel
+// and the live per-frame feedback panel shown while recording.
+function feedbackCardsHtml(cards, isMobLayout) {
+  if (!cards.length) return '';
+  let html = `<div class="fb-section"><div class="fb-lbl">Coaching</div>`;
+  for (const c of cards) {
+    const tag = c.type === 'good' ? '✓ Great' : c.type === 'warn' ? '⚠ Improve' : c.type === 'tip' ? '💡 Tip' : 'ℹ Info';
+    if (isMobLayout) {
+      const tagWord = c.type === 'good' ? 'Great' : c.type === 'warn' ? 'Improve' : c.type === 'tip' ? 'Tip' : 'Info';
+      html += `<div class="fb-card ${c.type}">
+        <details class="fb-card-detail">
+          <summary class="fb-card-summary"><span class="fb-tag">${c.cat} — ${tagWord}</span> ${c.short || c.text}</summary>
+          <div class="fb-text">${c.text}</div>
+        </details>
+      </div>`;
+    } else {
+      html += `<div class="fb-card ${c.type}"><div class="fb-tag">${c.cat} — ${tag}</div><div class="fb-text">${c.text}</div></div>`;
+    }
+  }
+  html += `</div>`;
+  return html;
+}
+
+const JOINT_ANGLE_METRIC_DEFS = [
+  { key:'leftElbow',    label:'Left Elbow',    good:[80,155],  plausKey:'elbow'        },
+  { key:'rightElbow',   label:'Right Elbow',   good:[80,155],  plausKey:'elbow'        },
+  { key:'leftKnee',     label:'Left Knee',     good:[115,165], plausKey:'knee'         },
+  { key:'rightKnee',    label:'Right Knee',    good:[115,165], plausKey:'knee'         },
+  { key:'shoulderTilt', label:'Shoulder Tilt', good:[0,12],    plausKey:'shoulderTilt' },
+  { key:'trunkLean',    label:'Trunk Lean',    good:[0,14],    plausKey:'trunkLean'    },
+];
+
+// Collapsible joint-angle table, shared between the frozen post-stroke feedback
+// panel and the live per-frame feedback panel shown while recording.
+function jointAngleTableHtml(m, isMobLayout) {
+  const openAttr = isMobLayout ? '' : ' open';
+  let html = `<div class="fb-section"><details class="metrics-details"${openAttr}>
+    <summary class="fb-lbl metrics-summary">Joint Angles</summary>
+    <div class="metrics-tbl" style="margin-top:6px">`;
+  for (const def of JOINT_ANGLE_METRIC_DEFS) {
+    if (m[def.key] === undefined) {
+      html += `<div class="m-row"><span class="m-name">${def.label}</span><span class="m-val m-dim">low visibility</span></div>`;
+      continue;
+    }
+    const val        = Math.round(m[def.key]);
+    const isOutlier  = !plausible(val, def.plausKey);
+    const cls        = isOutlier ? 'm-warn'
+                     : val >= def.good[0] && val <= def.good[1] ? 'm-good'
+                     : (val < def.good[0]*0.8 || val > def.good[1]*1.12) ? 'm-bad' : 'm-warn';
+    const flag       = isOutlier
+      ? `<span style="font-size:10px;color:#8b949e;margin-left:5px" title="Value outside normal physical range — may be a detection error">⚠ possibly inaccurate</span>`
+      : '';
+    html += `<div class="m-row"><span class="m-name">${def.label}</span><span class="m-val ${cls}">${val}°${flag}</span></div>`;
+  }
+  html += `</div></details></div>`;
+  return html;
+}
+
+// Live joint-angle feedback shown on the recording screen — same coaching cards
+// and joint-angle table as post-stroke analysis, but computed from the current
+// frame's landmarks (no stroke classification or score, since no stroke has
+// necessarily completed yet).
+function renderRecFeedback(lms) {
+  const scroll = document.getElementById('rec-feedback-scroll');
+  if (!scroll) return;
+
+  if (!lms) {
+    scroll.innerHTML = `
+      <div class="fb-waiting">
+        <div class="fb-waiting-icon">🎾</div>
+        Get in frame to see live joint-angle feedback.
+      </div>`;
+    return;
+  }
+
+  const m = computeMetrics(lms);
+  const bodyVis = m.bodyVisibility ?? 0;
+  if (bodyVis < 0.45) {
+    const noDetection = bodyVis < 0.15;
+    scroll.innerHTML = `
+      <div class="fb-waiting">
+        <div class="fb-waiting-icon">⚠️</div>
+        <div style="font-size:13px;font-weight:600;color:#d29922;margin-bottom:6px">
+          ${noDetection ? 'Player outside frame' : 'Player partially out of frame'}
+        </div>
+        <div style="font-size:12px;color:#8b949e;line-height:1.6">
+          ${noDetection
+            ? 'No body detected — step into frame to see live feedback.'
+            : "Key body landmarks aren't visible — move fully into frame for accurate feedback."}
+        </div>
+      </div>`;
+    return;
+  }
+
+  const isMobLayout = document.body.classList.contains('force-mobile') ||
+    (!document.body.classList.contains('force-desktop') && window.innerWidth <= 768);
+
+  const cards = generateFeedback(m);
+  let html = cards.length ? feedbackCardsHtml(cards, isMobLayout) : `
+    <div class="fb-waiting" style="padding:14px 6px">
+      <div class="fb-waiting-icon">✓</div>
+      Nothing to flag right now — keep swinging.
+    </div>`;
+  html += jointAngleTableHtml(m, isMobLayout);
+
+  scroll.innerHTML = html;
+}
+
 function showMarkerFeedback(marker, idx) {
   if (!marker.metrics && !marker.cards) return;
   stroke.frozenResult = {
@@ -5299,54 +5661,10 @@ function renderFrozenFeedback() {
   }
 
   // Feedback cards (shown first)
-  if (cards.length) {
-    html += `<div class="fb-section"><div class="fb-lbl">Coaching</div>`;
-    for (const c of cards) {
-      const tag = c.type === 'good' ? '✓ Great' : c.type === 'warn' ? '⚠ Improve' : c.type === 'tip' ? '💡 Tip' : 'ℹ Info';
-      if (isMobLayout) {
-        const tagWord = c.type === 'good' ? 'Great' : c.type === 'warn' ? 'Improve' : c.type === 'tip' ? 'Tip' : 'Info';
-        html += `<div class="fb-card ${c.type}">
-          <details class="fb-card-detail">
-            <summary class="fb-card-summary"><span class="fb-tag">${c.cat} — ${tagWord}</span> ${c.short || c.text}</summary>
-            <div class="fb-text">${c.text}</div>
-          </details>
-        </div>`;
-      } else {
-        html += `<div class="fb-card ${c.type}"><div class="fb-tag">${c.cat} — ${tag}</div><div class="fb-text">${c.text}</div></div>`;
-      }
-    }
-    html += `</div>`;
-  }
+  html += feedbackCardsHtml(cards, isMobLayout);
 
   // Metrics table (below coaching; collapsible on mobile)
-  const metricDefs = [
-    { key:'leftElbow',    label:'Left Elbow',    good:[80,155],  plausKey:'elbow'        },
-    { key:'rightElbow',   label:'Right Elbow',   good:[80,155],  plausKey:'elbow'        },
-    { key:'leftKnee',     label:'Left Knee',     good:[115,165], plausKey:'knee'         },
-    { key:'rightKnee',    label:'Right Knee',    good:[115,165], plausKey:'knee'         },
-    { key:'shoulderTilt', label:'Shoulder Tilt', good:[0,12],    plausKey:'shoulderTilt' },
-    { key:'trunkLean',    label:'Trunk Lean',    good:[0,14],    plausKey:'trunkLean'    },
-  ];
-  const openAttr = isMobLayout ? '' : ' open';
-  html += `<div class="fb-section"><details class="metrics-details"${openAttr}>
-    <summary class="fb-lbl metrics-summary">Joint Angles</summary>
-    <div class="metrics-tbl" style="margin-top:6px">`;
-  for (const def of metricDefs) {
-    if (m[def.key] === undefined) {
-      html += `<div class="m-row"><span class="m-name">${def.label}</span><span class="m-val m-dim">low visibility</span></div>`;
-      continue;
-    }
-    const val        = Math.round(m[def.key]);
-    const isOutlier  = !plausible(val, def.plausKey);
-    const cls        = isOutlier ? 'm-warn'
-                     : val >= def.good[0] && val <= def.good[1] ? 'm-good'
-                     : (val < def.good[0]*0.8 || val > def.good[1]*1.12) ? 'm-bad' : 'm-warn';
-    const flag       = isOutlier
-      ? `<span style="font-size:10px;color:#8b949e;margin-left:5px" title="Value outside normal physical range — may be a detection error">⚠ possibly inaccurate</span>`
-      : '';
-    html += `<div class="m-row"><span class="m-name">${def.label}</span><span class="m-val ${cls}">${val}°${flag}</span></div>`;
-  }
-  html += `</div></details></div>`;
+  html += jointAngleTableHtml(m, isMobLayout);
 
   scroll.innerHTML = html;
   hideUndoBar();
@@ -5550,7 +5868,7 @@ document.addEventListener('drop', e => {
     document.getElementById('rec-preview').srcObject = null;
   }
 
-  function _checkRecOrientation() {
+  function _applyOrientationUI() {
     const hint = document.getElementById('rec-rotate-hint');
     if (!hint) return;
     const isPortrait = window.innerHeight > window.innerWidth;
@@ -5563,6 +5881,43 @@ document.addEventListener('drop', e => {
       hint.style.display = 'flex';
       hint.dataset.dismissed = '';
     }
+    _syncRecLandscapeLayout();
+  }
+
+  // Wrapper around _applyOrientationUI(): some mobile browsers (notably iOS Safari)
+  // fire 'orientationchange'/the screen.orientation 'change' event BEFORE
+  // window.innerWidth/innerHeight and getBoundingClientRect() have caught up to the
+  // new orientation. Measuring immediately can bake in stale (pre-rotation)
+  // dimensions into _syncRecLandscapeLayout()'s pixel calculation, which is why
+  // flipping into landscape could look different from opening already in landscape
+  // (where the first measurement is correct from the start). Re-run a couple more
+  // times after the event so a late-settling layout still gets picked up.
+  function _checkRecOrientation() {
+    _applyOrientationUI();
+    requestAnimationFrame(() => requestAnimationFrame(_applyOrientationUI));
+    setTimeout(_applyOrientationUI, 300);
+  }
+
+  // Phone landscape: size the video column in real pixels so video height + the
+  // controls strip's height together exactly fill the available window height,
+  // and the camera keeps its natural aspect ratio (no stretching/cropping).
+  // CSS alone (aspect-ratio on an "auto" grid column paired with a "1fr" row)
+  // isn't reliably supported across mobile browsers for this, so it's computed
+  // here from measured pixel heights instead.
+  function _syncRecLandscapeLayout() {
+    const layout = document.getElementById('rec-layout');
+    if (!layout) return;
+    const isPhoneLandscape = window.matchMedia('(max-height: 500px) and (orientation: landscape)').matches;
+    if (!isPhoneLandscape) {
+      layout.style.gridTemplateColumns = '';
+      return;
+    }
+    const controlsBar = document.getElementById('rec-controls-bar');
+    const totalH = layout.getBoundingClientRect().height;
+    const ctrlH  = controlsBar ? controlsBar.getBoundingClientRect().height : 0;
+    const videoH = Math.max(0, totalH - ctrlH);
+    const videoW = Math.round(videoH * 16 / 9);
+    layout.style.gridTemplateColumns = videoW + 'px 1fr';
   }
 
   // Dismiss button sets a flag so we don't re-show on minor resize events
@@ -5572,19 +5927,24 @@ document.addEventListener('drop', e => {
   };
 
   window.openRecordModal = function() {
+    _primeVoiceSynthesis(); // must happen directly inside this tap handler — see comment above the function
     _secs = 0; _chunks = [];
     document.getElementById('rec-timer-badge').textContent = '⏺ 0:00';
     _setRecording(false);
     _setErr('');
+    app._recFeedbackFrames = 0;
+    renderRecFeedback(null);
     const hint = document.getElementById('rec-rotate-hint');
     if (hint) { hint.dataset.dismissed = ''; }  // reset dismiss on open
     document.getElementById('rec-screen').classList.add('visible');
     _checkRecOrientation();
+    // Listen for both — resize is the more reliable "layout actually changed"
+    // signal and acts as a backstop even on browsers where screen.orientation
+    // fires early (see _checkRecOrientation's comment).
     if (screen.orientation) {
       screen.orientation.addEventListener('change', _checkRecOrientation);
-    } else {
-      window.addEventListener('resize', _checkRecOrientation);
     }
+    window.addEventListener('resize', _checkRecOrientation);
     _startPreview().then(() => {
       if (app.modelsReady) _startRecAnalysis();
     });
@@ -5600,14 +5960,15 @@ document.addEventListener('drop', e => {
     clearInterval(_timerInt);
     _stopRecAnalysis();
     _stopPreview();
+    if (window.speechSynthesis) speechSynthesis.cancel();
+    document.getElementById('rec-voice-badge')?.classList.remove('visible');
     _pendingBlob = null;
     document.getElementById('rec-screen').classList.remove('visible', 'renaming');
     _setRecording(false);
     if (screen.orientation) {
       screen.orientation.removeEventListener('change', _checkRecOrientation);
-    } else {
-      window.removeEventListener('resize', _checkRecOrientation);
     }
+    window.removeEventListener('resize', _checkRecOrientation);
     const hint = document.getElementById('rec-rotate-hint');
     if (hint) { hint.style.display = 'none'; hint.dataset.dismissed = ''; }
     const v = document.getElementById('rec-preview');
@@ -5638,6 +5999,9 @@ document.addEventListener('drop', e => {
       _chunks = []; _secs = 0;
       app._recElapsed = 0;
       _recStartMs = performance.now();
+      if (window.speechSynthesis) speechSynthesis.cancel(); // clear any leftover line from a previous take
+      _primeVoiceSynthesis(); // second unlock attempt, directly inside this tap handler too
+      document.getElementById('rec-voice-badge')?.classList.remove('visible');
       const mimeType = ['video/webm;codecs=vp9','video/webm','video/mp4']
         .find(t => MediaRecorder.isTypeSupported(t)) || '';
       try { _mr = new MediaRecorder(_stream, mimeType ? { mimeType } : {}); }
