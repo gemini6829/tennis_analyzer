@@ -2,8 +2,21 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>TennisAnalyzer — AI Stroke Analysis</title>
+
+  <!-- Standalone/full-screen launch when added to a phone's home screen.
+       This is the ONLY way to hide Safari's address bar and toolbar on iOS —
+       the in-page Fullscreen API (see toggleAppFullscreen()) isn't supported
+       for arbitrary elements in iOS Safari, only for <video>. Android/desktop
+       browsers get both: this manifest AND the in-page fullscreen button. -->
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#161b22">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="TennisAnalyzer">
+  <link rel="apple-touch-icon" href="icon.svg">
 
   <!-- AI Detection Models -->
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5.1675469404/pose.js" crossorigin="anonymous"></script>
@@ -204,13 +217,6 @@
     .logo {
       display: flex; align-items: center; gap: 8px;
       font-size: 17px; font-weight: 700; letter-spacing: -0.3px;
-    }
-    .logo-icon {
-      width: 28px; height: 28px;
-      background: linear-gradient(135deg, #238636, #2ea043);
-      border-radius: 7px;
-      display: flex; align-items: center; justify-content: center;
-      font-size: 15px;
     }
     .logo-accent { color: #58a6ff; }
     .header-sep { width: 1px; height: 20px; background: #30363d; }
@@ -664,6 +670,19 @@
       display: none; flex-direction: column;
       align-items: center; justify-content: center; gap: 14px; z-index: 5;
     }
+    /* TEMPORARY DEBUG DISPLAY — commented out for now, re-enable by uncommenting
+       this block plus the matching HTML div and JS in processStroke()
+    #debug-speed-badge {
+      position: absolute; top: 10px; left: 10px;
+      z-index: 6; display: none;
+      background: rgba(0,0,0,0.78); border: 1px solid rgba(255,255,255,0.15);
+      border-radius: 6px; padding: 6px 10px;
+      font-family: monospace; font-size: 12px; line-height: 1.5;
+      color: #79c0ff; white-space: pre; pointer-events: none;
+    }
+    #debug-speed-badge .hot  { color: #f85149; font-weight: 700; }
+    #debug-speed-badge .cool { color: #8b949e; }
+    */
     .spinner {
       width: 38px; height: 38px;
       border: 3px solid #30363d; border-top-color: #58a6ff;
@@ -695,18 +714,17 @@
     .stroke-marker {
       position: absolute;
       top: -4px;
-      width: 4px;
+      min-width: 4px;
       height: 13px;
-      border-radius: 2px;
-      transform: translateX(-50%);
+      border-radius: 3px;
       cursor: pointer;
       z-index: 2;
-      opacity: 0.85;
+      opacity: 0.6;
       transition: opacity 0.15s, transform 0.15s;
     }
     .stroke-marker:hover {
-      opacity: 1;
-      transform: translateX(-50%) scaleY(1.3);
+      opacity: 0.9;
+      transform: scaleY(1.25);
     }
     .ctrl-row { display: flex; align-items: center; gap: 4px; }
     .ctrl-btn {
@@ -1496,16 +1514,14 @@
 ═══════════════════════════════════════════════ -->
 <div id="format-screen" class="screen">
   <div class="format-card">
-    <div class="format-logo">🎾 Tennis<span>Analyzer</span></div>
+    <div class="format-logo">Tennis<span>Analyzer</span></div>
     <div class="format-tagline">Choose your preferred layout</div>
     <div class="format-options">
       <button class="layout-btn" id="fmt-desktop-btn" onclick="chooseLayout('desktop')">
-        <div class="layout-icon">🖥️</div>
         <div class="layout-name">Desktop</div>
         <div class="layout-desc">Sidebar + side-by-side panels</div>
       </button>
       <button class="layout-btn" id="fmt-mobile-btn" onclick="chooseLayout('mobile')">
-        <div class="layout-icon">📱</div>
         <div class="layout-name">Mobile</div>
         <div class="layout-desc">Drawer sidebar, stacked panels</div>
       </button>
@@ -1519,7 +1535,7 @@
 ═══════════════════════════════════════════════ -->
 <div id="setup-screen" class="screen">
   <div class="setup-card">
-    <div class="setup-logo">🎾 Tennis<span>Analyzer</span> — Firebase Setup</div>
+    <div class="setup-logo">Tennis<span>Analyzer</span> — Firebase Setup</div>
     <p class="setup-intro">
       To enable accounts and cloud video storage, you need a free Firebase project.
       Follow these 5 steps, then paste your config into this file and refresh.
@@ -1554,7 +1570,7 @@
         <div class="setup-step-title">Create a Firestore database</div>
         <div class="setup-step-desc">
           In the sidebar go to <strong>Databases &amp; Storage → Firestore</strong>.
-          ⚠️ <strong>Important:</strong> Firebase has two separate database products —
+          <strong>Important:</strong> Firebase has two separate database products —
           make sure you choose <strong>Firestore</strong>, not "Realtime Database".
           Firestore and Realtime Database use completely different rules syntax;
           if your rules editor shows JSON starting with <code style="color:#79c0ff">{"rules": ...}</code>
@@ -1684,7 +1700,7 @@ service firebase.storage {
 ═══════════════════════════════════════════════ -->
 <div id="auth-screen" class="screen">
   <div class="auth-card">
-    <div class="auth-logo">🎾 Tennis<span>Analyzer</span></div>
+    <div class="auth-logo">Tennis<span>Analyzer</span></div>
     <div class="auth-tagline">AI-powered stroke coaching</div>
     <div class="auth-form-title" id="auth-title">Sign in to your account</div>
 
@@ -1711,7 +1727,6 @@ service firebase.storage {
   <header id="app-header">
     <button id="menu-btn" onclick="toggleMobileSidebar()" title="Menu">☰</button>
     <div class="logo">
-      <div class="logo-icon">🎾</div>
       Tennis<span class="logo-accent">Analyzer</span>
     </div>
     <div class="header-sep"></div>
@@ -1737,8 +1752,8 @@ service firebase.storage {
           Loading videos…
         </div>
       </div>
-      <button class="sidebar-add-btn" id="sidebar-add-btn">📁 Add Video</button>
-      <button class="sidebar-add-btn" id="sidebar-rec-btn" onclick="openRecordModal()" style="border-color:#484f58;">📹 Record</button>
+      <button class="sidebar-add-btn" id="sidebar-add-btn">Add Video</button>
+      <button class="sidebar-add-btn" id="sidebar-rec-btn" onclick="openRecordModal()" style="border-color:#484f58;">Record</button>
     </nav>
 
     <div id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
@@ -1748,13 +1763,12 @@ service firebase.storage {
       <!-- Upload zone -->
       <div id="upload-area">
         <div class="drop-zone" id="drop-zone">
-          <div class="dz-icon">🎾</div>
           <div class="dz-title">Drop a tennis video here</div>
           <div class="dz-sub">AI detects body position and racquet<br>and gives real-time stroke coaching</div>
           <div class="dz-or">— or —</div>
           <div class="dz-btn-row">
-            <button class="dz-btn" id="browse-btn">📁 Browse Files</button>
-            <button class="dz-btn-rec" id="record-btn" onclick="openRecordModal()">📹 Record</button>
+            <button class="dz-btn" id="browse-btn">Browse Files</button>
+            <button class="dz-btn-rec" id="record-btn" onclick="openRecordModal()">Record</button>
           </div>
           <div class="fmt-tags">
             <span class="fmt-tag">MP4</span><span class="fmt-tag">MOV</span>
@@ -1784,6 +1798,9 @@ service firebase.storage {
                 <div class="spinner"></div>
                 <div class="loading-msg" id="loading-msg">Loading…</div>
               </div>
+              <!-- TEMPORARY DEBUG DISPLAY — commented out for now
+              <div id="debug-speed-badge"></div>
+              -->
             </div>
             <div id="controls-bar">
               <div id="calib-ui">
@@ -1828,19 +1845,19 @@ service firebase.storage {
             </div>
             <div id="feedback-scroll"></div>
             <div id="camera-shift-bar">
-              <span class="cs-text">⚠️ Camera may have moved — ball detection unreliable</span>
+              <span class="cs-text">Camera may have moved — ball detection unreliable</span>
               <button onclick="hideCameraShiftBar()">✕</button>
             </div>
             <div id="detect-error-bar">
-              <span class="de-text">⚠️ Detection error for this clip — overlay may be unavailable</span>
+              <span class="de-text">Detection error for this clip — overlay may be unavailable</span>
               <button onclick="hideDetectErrorBar()">✕</button>
             </div>
             <div id="bad-pose-bar">
-              <span class="bp-text">⚠️ Body landmarks appear unreliable</span>
+              <span class="bp-text">Body landmarks appear unreliable</span>
               <button onclick="hideBadPoseBar()">✕</button>
             </div>
             <div id="no-body-bar">
-              <span class="nb-text">⚠️ Player out of frame</span>
+              <span class="nb-text">Player out of frame</span>
               <button class="nb-skip" onclick="skipToVisibleStroke()">⏭ Skip to next visible</button>
               <button onclick="hideNoBodyBar()">✕</button>
             </div>
@@ -1871,8 +1888,8 @@ service firebase.storage {
           <small>Switch between desktop and mobile views</small>
         </div>
         <div class="sm-hand-btns">
-          <button class="sm-hand-btn" id="sm-layout-desktop" onclick="settingsSetLayout('desktop')">🖥️ Desktop</button>
-          <button class="sm-hand-btn" id="sm-layout-mobile"  onclick="settingsSetLayout('mobile')">📱 Mobile</button>
+          <button class="sm-hand-btn" id="sm-layout-desktop" onclick="settingsSetLayout('desktop')">Desktop</button>
+          <button class="sm-hand-btn" id="sm-layout-mobile"  onclick="settingsSetLayout('mobile')">Mobile</button>
         </div>
       </div>
 
@@ -1883,8 +1900,8 @@ service firebase.storage {
           <small>Which hand holds the racquet</small>
         </div>
         <div class="sm-hand-btns">
-          <button class="sm-hand-btn" id="sm-hand-right" onclick="settingsSetHandedness('right')">✋ Right</button>
-          <button class="sm-hand-btn" id="sm-hand-left"  onclick="settingsSetHandedness('left')">🤚 Left</button>
+          <button class="sm-hand-btn" id="sm-hand-right" onclick="settingsSetHandedness('right')">Right</button>
+          <button class="sm-hand-btn" id="sm-hand-left"  onclick="settingsSetHandedness('left')">Left</button>
         </div>
       </div>
 
@@ -1936,6 +1953,15 @@ service firebase.storage {
         </label>
       </div>
 
+      <!-- Full screen -->
+      <div class="sm-row">
+        <div class="sm-row-label">
+          Full screen
+          <small>Hide the browser's address bar and toolbar (Android/desktop — on iPhone, use Share → Add to Home Screen instead)</small>
+        </div>
+        <button class="sm-calib-btn" id="sm-fullscreen-btn" onclick="toggleAppFullscreen()">⛶ Enter</button>
+      </div>
+
       <!-- Play area -->
       <div class="sm-row">
         <div class="sm-row-label">
@@ -1972,7 +1998,7 @@ service firebase.storage {
       <div class="rec-voice-badge" id="rec-voice-badge"></div>
     </div>
     <div id="rec-controls-bar">
-      <button class="rec-side-btn" id="rec-flip-btn" onclick="recFlipCamera()" title="Flip camera">🔄</button>
+      <button class="rec-side-btn" id="rec-flip-btn" onclick="recFlipCamera()" title="Flip camera">↺</button>
       <button class="rec-shutter" id="rec-shutter" onclick="recToggle()" title="Record / Stop">
         <div class="rec-shutter-inner"></div>
       </button>
@@ -2085,7 +2111,7 @@ const CONFIG_READY = FIREBASE_CONFIG.apiKey !== "YOUR_API_KEY";
 
 // Bump this whenever the scan/classification logic changes so stale cached
 // results are automatically discarded and a fresh scan runs.
-const SCAN_VERSION = 5;
+const SCAN_VERSION = 11;
 
 // ════════════════════════════════════════════════════════════
 //  DOM REFS
@@ -2151,6 +2177,7 @@ const app = {
   strokeByStrokeMode:  false,
   sbsPauseAtVT:        null,
   lastPausedMarkerVT:  -Infinity,
+  lastShownMarkerVT:   -Infinity, // last marker's score shown in continuous (non-auto-pause) playback — see timeupdate handler
   lastLandmarkVT:      -Infinity, // last video time a pose was detected (live path)
   lastNoBodyWarnVT:    -Infinity, // last video time we showed the no-body warning
   // Canvas sync cache
@@ -2183,6 +2210,10 @@ const scan = {
   // produces a value ~6× smaller when divided by 0.2s instead of 0.033s.
   SPEED_START:  0.25,
   SPEED_END:    0.20, // high enough to match real post-stroke deceleration at 0.2s intervals
+  slowSinceVT:  null, // video time speed first dropped below SPEED_END, continuously — null when not currently dipping
+  lastRedVT:    null, // video time of the most recent frame with speed > SPEED_START, during the current stroke
+  END_GRACE:    0.35, // speed must stay below SPEED_END for this long (seconds) before the stroke actually ends
+  RED_TIMEOUT:  0.8,  // end the stroke if speed hasn't been above SPEED_START for this long (seconds)
   MIN_FRAMES:   2,
   COOLDOWN:     1.5,
   maxSpeed:          0,
@@ -2228,8 +2259,12 @@ const stroke = {
   pendingServeCheck:  null,
   wristHistory:       [],
   poseUnreliable:     false, // true if any buffer frame had impossible anatomy
+  slowSinceVT:        null,  // video time speed first dropped below SPEED_END, continuously — null when not currently dipping
+  lastRedVT:          null,  // video time of the most recent frame with speed > SPEED_START, during the current stroke
   SPEED_START:   0.65,    // normalized units/sec (in video-time) to start stroke
   SPEED_END:     0.25,    // drop below this to end stroke
+  END_GRACE:     0.35,    // speed must stay below SPEED_END for this long (seconds) before the stroke actually ends — absorbs brief mid-swing deceleration blips so one stroke doesn't get split into two
+  RED_TIMEOUT:   0.8,     // end the stroke if speed hasn't been above SPEED_START for this long (seconds), even if it never sustained a clean dip below SPEED_END — catches a swing that stalls in the "blue" zone
   MIN_FRAMES:    3,       // min frames before stroke can be declared
   COOLDOWN:      1.5,     // min seconds between strokes (prevents double-fire)
 };
@@ -2257,10 +2292,19 @@ function bodyRelativeSpeed(dx, dy, dt, lms) {
 // ready position) within the allowed lookback window. The wrist drifts away
 // from centre as the player begins their preparation, so the minimum-distance
 // frame is the last moment the arm was at rest before the stroke started.
+// Finds where the wrist was closest to the body midline shortly before a stroke's
+// speed trigger fired, as a proxy for "where the backswing started". minVT is
+// clamped to at most MAX_LOOKBACK before currentVT — without that cap, this could
+// search the entire multi-second cooldown-bounded window and pick some earlier,
+// unrelated moment where the wrist just happened to pass near the midline (e.g.
+// resting between points), producing a marker that starts implausibly long before
+// any elevated speed reading ever appeared.
+const PREP_START_MAX_LOOKBACK = 1.2; // seconds
 function findPrepStart(history, currentVT, minVT) {
+  const clampedMinVT = Math.max(minVT, currentVT - PREP_START_MAX_LOOKBACK);
   let bestVT = null, minDist = Infinity;
   for (const h of history) {
-    if (h.vt < minVT || h.vt > currentVT) continue;
+    if (h.vt < clampedMinVT || h.vt > currentVT) continue;
     const d = Math.abs(h.x - h.midX);
     if (d < minDist) { minDist = d; bestVT = h.vt; }
   }
@@ -2268,10 +2312,12 @@ function findPrepStart(history, currentVT, minVT) {
 }
 
 function resetStrokeDetector() {
-  stroke.prevPos   = null;
-  stroke.prevVT    = 0;
-  stroke.active    = false;
-  stroke.buffer    = [];
+  stroke.prevPos     = null;
+  stroke.prevVT      = 0;
+  stroke.active      = false;
+  stroke.buffer      = [];
+  stroke.slowSinceVT = null;
+  stroke.lastRedVT   = null;
   // Note: markers and lastStrokeVT are preserved across seeks
 }
 
@@ -2280,15 +2326,21 @@ function renderStrokeMarkers() {
   track.querySelectorAll('.stroke-marker').forEach(m => m.remove());
   if (!videoEl.duration) return;
   stroke.markers.forEach((marker, i) => {
-    const { startTime, score, type } = marker;
-    const pct     = (startTime / videoEl.duration) * 100;
+    const { startTime, endTime, score, type } = marker;
+    const startPct = (startTime / videoEl.duration) * 100;
+    // endTime isn't always known yet (e.g. a marker added mid-detection before
+    // the stroke's end was confirmed) — fall back to a short fixed span so it's
+    // still visible rather than collapsing to zero width.
+    const effectiveEnd = endTime != null ? endTime : startTime + 0.5;
+    const widthPct = Math.max(((effectiveEnd - startTime) / videoEl.duration) * 100, 0.4);
     const bodyVis = marker.metrics?.bodyVisibility ?? 1;
     const color   = bodyVis < 0.45 ? '#484f58'  // grey = out of frame
       : score === null ? '#8b949e'
       : score >= 70 ? '#3fb950' : score >= 45 ? '#d29922' : '#f85149';
     const el    = document.createElement('div');
     el.className = 'stroke-marker';
-    el.style.left       = pct + '%';
+    el.style.left       = startPct + '%';
+    el.style.width      = widthPct + '%';
     el.style.background = color;
     const typeStr = type ? `${type.type} · ` : '';
     el.title = bodyVis < 0.15
@@ -2334,6 +2386,8 @@ async function startScan() {
   scan.active       = false;
   scan.lastStrokeVT = -999;
   scan.maxSpeed     = 0;
+  scan.slowSinceVT  = null;
+  scan.lastRedVT    = null;
   scan.ballHistory  = [];
   scan.ballTriggered = false;
 
@@ -2411,9 +2465,11 @@ async function startScan() {
   if (scan.active && scan.buffer.length >= 1) {
     const avg  = avgMetrics(scan.buffer);
     const type = classifyStrokeType(scan.buffer, true);
-    stroke.markers.push({ startTime: scan.startVT, endTime: scanEl.currentTime, score: scoreStroke(avg), type, metrics: avg, cards: generateFeedback(avg), poseUnreliable: scan.poseUnreliable });
+    stroke.markers.push({ startTime: scan.startVT, endTime: scanEl.currentTime, score: scoreStroke(avg, type), type, metrics: avg, cards: generateFeedback(avg, type), poseUnreliable: scan.poseUnreliable });
     scan.active        = false;
     scan.buffer        = [];
+    scan.slowSinceVT   = null;
+    scan.lastRedVT     = null;
     scan.ballTriggered = false;
   }
 
@@ -2529,6 +2585,7 @@ async function rescanVideo() {
   app.scanComplete           = false;
   stroke.lastStrokeVT    = -999;
   app.lastPausedMarkerVT = -Infinity;
+  app.lastShownMarkerVT  = -Infinity;
   renderStrokeMarkers();
   startScan();
 }
@@ -3279,6 +3336,8 @@ function processScanBall(pos, vt) {
     const minVT  = scan.lastStrokeVT + scan.COOLDOWN;
     scan.startVT = Math.max(minVT, p1.vt - 0.4); // start just before contact
     scan.buffer  = [];
+    scan.slowSinceVT = null;
+    scan.lastRedVT   = vt;
     console.log('[TA] Ball-triggered stroke at', vt.toFixed(2));
     console.log('[TA] Ball-triggered stroke at', vt.toFixed(2));
   }
@@ -3300,7 +3359,7 @@ function processScanStroke(lms) {
     const shoulderY   = ((lms[LM.L_SHOULDER]?.y ?? 0.35) + (lms[LM.R_SHOULDER]?.y ?? 0.35)) / 2;
     const minWristY   = Math.min(rW?.y ?? 1, lW?.y ?? 1);
     if (minWristY < shoulderY - 0.06) {
-      if (stroke.markers[markerIdx]) stroke.markers[markerIdx].type = { type: 'Serve / Overhead', icon: '🎯' };
+      if (stroke.markers[markerIdx]) stroke.markers[markerIdx].type = { type: 'Serve / Overhead', icon: '' };
       scan.pendingServeCheck = null;
       renderStrokeMarkers();
     } else if (vt >= expiresVT) {
@@ -3332,6 +3391,8 @@ function processScanStroke(lms) {
         const prepVT = findPrepStart(scan.wristHistory, vt, minVT);
         scan.startVT = prepVT ?? Math.max(minVT, vt - 1.0);
         scan.buffer  = [];
+        scan.slowSinceVT = null;
+        scan.lastRedVT   = vt;
       }
       if (scan.active) {
         if (isAnatomicallyImpossible(lms)) scan.poseUnreliable = true;
@@ -3349,17 +3410,37 @@ function processScanStroke(lms) {
         m._lsX = lms[LM.L_SHOULDER]?.x ?? 0.4;
         m._rsX = lms[LM.R_SHOULDER]?.x ?? 0.6;
         scan.buffer.push(m);
-        // End stroke when speed drops AND wrist has traveled enough (cross-body check).
-        // This prevents premature endings during brief deceleration mid-swing.
+        // End stroke when speed drops AND wrist has traveled enough (cross-body check),
+        // AND speed has stayed low for END_GRACE seconds — a brief mid-swing
+        // deceleration blip would otherwise end the stroke early and register the
+        // follow-through as a second, separate stroke once speed picks back up.
         const firstBuf   = scan.buffer[0];
         const swingTravel = firstBuf
           ? Math.sqrt((wrist.x - firstBuf._wx) ** 2 + (wrist.y - firstBuf._wy) ** 2)
           : 1;
         const longEnough = scan.buffer.length >= 8; // ~1.6 s fallback
-        if (speed < scan.SPEED_END && scan.buffer.length >= scan.MIN_FRAMES && (swingTravel > 0.05 || longEnough)) {
+        const isSlow = speed < scan.SPEED_END && (swingTravel > 0.05 || longEnough);
+        if (isSlow) {
+          if (scan.slowSinceVT === null) scan.slowSinceVT = vt;
+        } else {
+          scan.slowSinceVT = null;
+        }
+        const slowLongEnough = scan.slowSinceVT !== null && (vt - scan.slowSinceVT) >= scan.END_GRACE;
+        // Second, independent end condition: if speed hasn't been above SPEED_START
+        // for RED_TIMEOUT seconds, end the stroke even if it never sustained a clean
+        // dip below SPEED_END — catches a swing that stalls between the two
+        // thresholds without ever going properly slow.
+        if (speed > scan.SPEED_START) scan.lastRedVT = vt;
+        const redTimedOut = scan.lastRedVT !== null && (vt - scan.lastRedVT) > scan.RED_TIMEOUT;
+        if ((slowLongEnough || redTimedOut) && scan.buffer.length >= scan.MIN_FRAMES) {
+          // Report the moment the swing actually slowed down, not `vt` (now) — see
+          // the matching comment in processStroke() for why.
+          const actualEndVT = slowLongEnough ? scan.slowSinceVT : scan.lastRedVT;
+          scan.lastRedVT = null;
+          scan.slowSinceVT = null;
           const avg  = avgMetrics(scan.buffer);
           const type = classifyStrokeType(scan.buffer, true);
-          stroke.markers.push({ startTime: scan.startVT, endTime: vt, score: scoreStroke(avg), type, metrics: avg, cards: generateFeedback(avg), poseUnreliable: scan.poseUnreliable });
+          stroke.markers.push({ startTime: scan.startVT, endTime: actualEndVT, score: scoreStroke(avg, type), type, metrics: avg, cards: generateFeedback(avg, type), poseUnreliable: scan.poseUnreliable });
           scan.pendingServeCheck = { markerIdx: stroke.markers.length - 1, expiresVT: vt + 2.5 };
           scan.lastStrokeVT  = vt;
           scan.active        = false;
@@ -3380,7 +3461,6 @@ function showScanProgressUI() {
   app.scanPoses = 0;
   document.getElementById('feedback-scroll').innerHTML = `
     <div class="fb-waiting">
-      <div class="fb-waiting-icon" style="font-size:28px">🔍</div>
       <div style="font-size:13px;font-weight:600;color:#c9d1d9;margin-bottom:6px">Scanning video for strokes…</div>
       <div style="font-size:12px;color:#8b949e;margin-bottom:14px;line-height:1.6">
         Running in the background — feel free to watch any part of the video.<br>
@@ -3421,7 +3501,6 @@ function showScanCompleteUI() {
   }
   document.getElementById('feedback-scroll').innerHTML = `
     <div class="fb-waiting">
-      <div class="fb-waiting-icon" style="font-size:28px">✅</div>
       <div style="font-size:13px;font-weight:600;color:#3fb950;margin-bottom:6px">Scan complete</div>
       <div style="font-size:12px;color:#8b949e;line-height:1.6">
         ${n === 0
@@ -3527,7 +3606,7 @@ function classifyStrokeType(buffer, isScan = false) {
   const minLwY    = Math.min(...frames.map(f => f._lwy ?? 1));
   const minWristY = Math.min(minRwY, minLwY);
   if (minWristY < shoulderY - 0.08)
-    return { type: 'Serve / Overhead', icon: '🎯' };
+    return { type: 'Serve / Overhead', icon: '' };
 
   // ── 2. VOLLEY ─────────────────────────────────────────────────────────────
   // Volleys are only classified during live playback (~30 fps). At scan
@@ -3536,15 +3615,30 @@ function classifyStrokeType(buffer, isScan = false) {
   // every stroke would be called a volley. Live detection has enough frames to
   // distinguish a genuinely brief, compact swing from a full groundstroke.
   if (!isScan && xRange < 0.11 && yRange < 0.10 && frames.length <= 10)
-    return { type: `${side} Volley`, icon: '⚡' };
+    return { type: `${side} Volley`, icon: '' };
 
   // ── 3. SLICE ──────────────────────────────────────────────────────────────
   if (yTravel > 0.09 && xRange > 0.04)
     return { type: `${side} Slice`, icon: '↘' };
 
   // ── 4. GROUNDSTROKE ───────────────────────────────────────────────────────
-  return { type: side, icon: isForehand ? '→' : '←' };
+  // Forehand vs backhand is still detected above (isForehand/side) since Slice
+  // and Volley keep that qualifier, but a plain groundstroke is reported as a
+  // single unified category rather than split by which side it was hit on.
+  return { type: 'Groundstroke', icon: '' };
 }
+
+// TEMPORARY DEBUG DISPLAY — commented out for now, re-enable by uncommenting
+// this function plus its call sites in processStroke() and the matching
+// HTML/CSS for #debug-speed-badge
+/*
+function _updateDebugSpeedBadge(html) {
+  const el = document.getElementById('debug-speed-badge');
+  if (!el) return;
+  el.style.display = 'block';
+  el.innerHTML = html;
+}
+*/
 
 function processStroke(lms) {
   const rW = lms[LM.R_WRIST], lW = lms[LM.L_WRIST];
@@ -3562,7 +3656,7 @@ function processStroke(lms) {
     if (minWristY < shoulderY - 0.06) {
       const marker = stroke.markers[markerIdx];
       if (marker) {
-        marker.type = { type: 'Serve / Overhead', icon: '🎯' };
+        marker.type = { type: 'Serve / Overhead', icon: '' };
         if (stroke.frozenResult && stroke.lastDetectedStartVT === marker.startTime) {
           stroke.frozenResult.type = marker.type;
           renderFrozenFeedback();
@@ -3579,6 +3673,7 @@ function processStroke(lms) {
   if (!stroke.active && (vt - stroke.lastStrokeVT) < stroke.COOLDOWN) {
     stroke.prevPos = { x: wrist.x, y: wrist.y };
     stroke.prevVT  = vt;
+    // _updateDebugSpeedBadge(`speed: —  (cooldown, ${(stroke.COOLDOWN - (vt - stroke.lastStrokeVT)).toFixed(2)}s left)\nstart≥${stroke.SPEED_START}  end<${stroke.SPEED_END}`);
     return;
   }
 
@@ -3588,6 +3683,8 @@ function processStroke(lms) {
       const dx = wrist.x - stroke.prevPos.x;
       const dy = wrist.y - stroke.prevPos.y;
       const speed = bodyRelativeSpeed(dx, dy, dt, lms);
+      // const _speedCls = speed > stroke.SPEED_START ? 'hot' : speed < stroke.SPEED_END ? 'cool' : '';
+      // _updateDebugSpeedBadge(`speed: <span class="${_speedCls}">${speed.toFixed(3)}</span>\nstart≥${stroke.SPEED_START}  end<${stroke.SPEED_END}\nactive: ${stroke.active}`);
 
       // Maintain rolling wrist history for prep-start detection
       const liveMidX = ((lms[LM.L_SHOULDER]?.x ?? 0.4) + (lms[LM.R_SHOULDER]?.x ?? 0.6)) / 2;
@@ -3605,6 +3702,8 @@ function processStroke(lms) {
           const prepVT   = findPrepStart(stroke.wristHistory, vt, minVT);
           stroke.startVT = prepVT ?? Math.max(minVT, vt - 1.0);
           stroke.buffer  = [];
+          stroke.slowSinceVT = null;
+          stroke.lastRedVT   = vt;
         }
       } else if (!stroke.active) {
         stroke.fastFrames = 0; // reset counter if speed drops before threshold is met
@@ -3634,15 +3733,46 @@ function processStroke(lms) {
           ? Math.sqrt((wrist.x - firstBuf._wx) ** 2 + (wrist.y - firstBuf._wy) ** 2)
           : 1;
         const enoughTravel   = swingTravel > 0.08;
-        if (((speed < stroke.SPEED_END && enoughTravel) || forceEnd) && stroke.buffer.length >= stroke.MIN_FRAMES) {
+        // Require speed to stay below SPEED_END continuously for END_GRACE seconds
+        // before actually ending the stroke — a brief mid-swing deceleration (e.g.
+        // the pause in a two-hander's transition, or a kick serve) would otherwise
+        // end the stroke early and register the follow-through as a second, separate
+        // stroke once speed picks back up again.
+        const isSlow = speed < stroke.SPEED_END && enoughTravel;
+        if (isSlow) {
+          if (stroke.slowSinceVT === null) stroke.slowSinceVT = vt;
+        } else {
+          stroke.slowSinceVT = null;
+        }
+        const slowLongEnough = stroke.slowSinceVT !== null && (vt - stroke.slowSinceVT) >= stroke.END_GRACE;
+        // Second, independent end condition: if speed hasn't been "red" (above
+        // SPEED_START) for RED_TIMEOUT seconds, end the stroke even if it never
+        // sustained a clean dip below SPEED_END — catches a swing that stalls in
+        // the "blue" zone (between the two thresholds) without ever going properly
+        // slow, which the grace-window check above wouldn't otherwise catch.
+        if (speed > stroke.SPEED_START) stroke.lastRedVT = vt;
+        const redTimedOut = stroke.lastRedVT !== null && (vt - stroke.lastRedVT) > stroke.RED_TIMEOUT;
+        // const sinceRed = stroke.lastRedVT !== null ? (vt - stroke.lastRedVT) : 0;
+        // _updateDebugSpeedBadge(`speed: <span class="${_speedCls}">${speed.toFixed(3)}</span>\nstart≥${stroke.SPEED_START}  end<${stroke.SPEED_END}\nactive: ${stroke.active}\nsince red: ${sinceRed.toFixed(2)}s / ${stroke.RED_TIMEOUT}s`);
+        if ((slowLongEnough || forceEnd || redTimedOut) && stroke.buffer.length >= stroke.MIN_FRAMES) {
+          // Report the moment the swing actually slowed down, not `vt` (now) — which
+          // is later by however long it took to CONFIRM the stroke had ended (the
+          // END_GRACE or RED_TIMEOUT delay). Reporting raw `vt` would make the
+          // recorded stop time overshoot the true end by a variable amount depending
+          // on which condition fired, which is what made it look inconsistent.
+          const actualEndVT = slowLongEnough ? stroke.slowSinceVT
+            : redTimedOut ? stroke.lastRedVT
+            : vt; // forceEnd: no clean "last known good" timestamp — use now
+          stroke.slowSinceVT = null;
+          stroke.lastRedVT   = null;
           const avg   = avgMetrics(stroke.buffer);
-          const score = scoreStroke(avg);
           const type  = classifyStrokeType(stroke.buffer);
+          const score = scoreStroke(avg, type);
 
           // Voice feedback fires here, independent of the scan/marker reconciliation
           // below — recording has no background scan to sync against, so waiting on
           // that logic would sometimes silently skip speaking.
-          if (app.recRecording && app.voiceFeedbackEnabled) speakStrokeFeedback(avg);
+          if (app.recRecording && app.voiceFeedbackEnabled) speakStrokeFeedback(avg, type);
 
           // Use the scan marker's pre-computed score so the feedback panel and
           // marker colour are always the same number. Live playback updates the
@@ -3660,26 +3790,35 @@ function processStroke(lms) {
           stroke.buffer       = [];
 
           // Sync with scan markers: refine type/score/endTime if scan found it,
-          // or add a new marker if the scan hadn't finished yet.
+          // or add a new marker if the scan hadn't finished yet. This part stays
+          // conservative on purpose — only a close time match (or a still-in-
+          // progress scan) gets to create/mutate a stored marker.
+          let panelResult = null;
           if (withinWindow) {
             nearest.type         = type;
             nearest.score        = displayScore;
-            nearest.endTime      = vt;
+            nearest.endTime      = actualEndVT;
             nearest.poseUnreliable = nearest.poseUnreliable || stroke.poseUnreliable;
-            stroke.frozenResult  = { metrics: avg, cards: generateFeedback(avg), score: displayScore, type, poseUnreliable: nearest.poseUnreliable };
-            if (!app.strokeByStrokeMode) renderFrozenFeedback();
+            panelResult = { metrics: avg, cards: generateFeedback(avg, type), score: displayScore, type, poseUnreliable: nearest.poseUnreliable };
           } else if (!app.scanComplete) {
             const wasDeleted = stroke.deletedTimes.some(t => Math.abs(t - stroke.startVT) < 2.0);
             if (!wasDeleted) {
-              stroke.markers.push({ startTime: stroke.startVT, endTime: vt, score: displayScore, type, metrics: avg, cards: generateFeedback(avg), poseUnreliable: stroke.poseUnreliable });
+              stroke.markers.push({ startTime: stroke.startVT, endTime: actualEndVT, score: displayScore, type, metrics: avg, cards: generateFeedback(avg, type), poseUnreliable: stroke.poseUnreliable });
               stroke.markers.sort((a, b) => a.startTime - b.startTime);
-              stroke.frozenResult = { metrics: avg, cards: generateFeedback(avg), score: displayScore, type, poseUnreliable: stroke.poseUnreliable };
-              if (!app.strokeByStrokeMode) renderFrozenFeedback();
+              panelResult = { metrics: avg, cards: generateFeedback(avg, type), score: displayScore, type, poseUnreliable: stroke.poseUnreliable };
             }
+          } else {
+            // scanComplete && !withinWindow: don't create/mutate a marker (the scan
+            // already catalogued every real stroke, so this is probably a timing
+            // mismatch rather than a genuinely new one) — but the panel should
+            // still reflect the stroke that was just played instead of silently
+            // freezing on whatever was shown last.
+            panelResult = { metrics: avg, cards: generateFeedback(avg, type), score: displayScore, type, poseUnreliable: stroke.poseUnreliable };
           }
-          // If scanComplete && !withinWindow: scan is the authority — this live
-          // detection didn't match any marker, so ignore it entirely (no feedback,
-          // no new marker). Prevents phantom feedback updates between auto-pauses.
+          if (panelResult) {
+            stroke.frozenResult = panelResult;
+            if (!app.strokeByStrokeMode) renderFrozenFeedback();
+          }
 
           renderStrokeMarkers();
 
@@ -3770,6 +3909,14 @@ function initFirebase() {
       showMain();
       subscribeVideos(user.uid);
       loadUserSettings(user.uid);
+      // Loading the AI models is heavy (WASM compilation + a warm-up inference at
+      // the heaviest modelComplexity, plus the TF.js object-detection model) —
+      // deferred until after login so it doesn't compete with the auth form for
+      // the main thread while someone's still typing their credentials.
+      if (!app.modelsReady && !app._modelsLoading) {
+        app._modelsLoading = true;
+        loadModels();
+      }
     } else {
       if (unsubVideos) { unsubVideos(); unsubVideos = null; }
       app.clips = []; app.uploads = []; app.clipsLoaded = false;
@@ -3872,8 +4019,7 @@ function bootApp() {
   if (!CONFIG_READY) {
     document.getElementById('setup-screen').classList.add('visible');
   } else {
-    initFirebase();
-    loadModels();
+    initFirebase(); // loadModels() now runs after login — see onAuthStateChanged
   }
 }
 
@@ -3909,6 +4055,32 @@ function _updateFsBtn() {
 }
 document.addEventListener('fullscreenchange',       _updateFsBtn);
 document.addEventListener('webkitfullscreenchange', _updateFsBtn);
+
+// App-wide full screen (whole page, not just the video) — hides the browser's
+// address bar/toolbar. Only works where the Fullscreen API supports arbitrary
+// elements, which excludes iOS Safari entirely (it only supports it for
+// <video>); there, the only way to hide that chrome is "Add to Home Screen"
+// (see the manifest.json / apple-mobile-web-app meta tags in <head>).
+function toggleAppFullscreen() {
+  const el = document.documentElement;
+  const isFs = document.fullscreenElement || document.webkitFullscreenElement;
+  if (isFs) {
+    if (document.exitFullscreen) document.exitFullscreen();
+    else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+    return;
+  }
+  if (el.requestFullscreen) el.requestFullscreen().catch(() => {});
+  else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
+  else alert('Full screen isn\'t supported in this browser.\n\nOn iPhone: tap the Share button in Safari, then "Add to Home Screen" — opening the app from that icon hides the address bar automatically.');
+}
+function _updateAppFsBtn() {
+  const btn = document.getElementById('sm-fullscreen-btn');
+  if (!btn) return;
+  const isFs = document.fullscreenElement || document.webkitFullscreenElement;
+  btn.textContent = isFs ? '✕ Exit' : '⛶ Enter';
+}
+document.addEventListener('fullscreenchange',       _updateAppFsBtn);
+document.addEventListener('webkitfullscreenchange', _updateAppFsBtn);
 
 function settingsSetHandedness(h) {
   if (playerHandedness === h) return;
@@ -4205,7 +4377,7 @@ function renderClipList() {
   const list = document.getElementById('clip-list');
   if (!app.clips.length && !app.uploads.length) {
     list.innerHTML = app.clipsLoaded
-      ? `<div class="clip-empty"><div class="clip-empty-icon">🎬</div>No videos yet.<br>Upload one to start.</div>`
+      ? `<div class="clip-empty">No videos yet.<br>Upload one to start.</div>`
       : `<div class="clip-empty"><div class="clip-loading-spinner"></div>Loading videos…</div>`;
     return;
   }
@@ -4288,9 +4460,12 @@ async function selectClip(id) {
   scan.prevPos        = null;
   scan.active         = false;
   scan.lastStrokeVT   = -999;
+  scan.slowSinceVT    = null;
+  scan.lastRedVT      = null;
   renderStrokeMarkers();
 
   app.lastPausedMarkerVT = -Infinity;
+  app.lastShownMarkerVT  = -Infinity;
   app.lastLandmarkVT     = -Infinity;
   app.lastNoBodyWarnVT   = -Infinity;
   hideUndoBar();
@@ -4400,6 +4575,7 @@ videoEl.addEventListener('seeked', () => {
   app.lastDetVideoTime = -1; // allow detection to fire immediately after seek
   stroke.lastStrokeVT = videoEl.currentTime - stroke.COOLDOWN - 0.01;
   app.lastPausedMarkerVT = videoEl.currentTime; // only pause on markers after the seek point
+  app.lastShownMarkerVT  = videoEl.currentTime; // only auto-show markers after the seek point
   updateScrub();
   if (app.modelsReady && !app.detecting && !app.scanning) detectFrame();
 });
@@ -4435,6 +4611,23 @@ videoEl.addEventListener('timeupdate', () => {
       videoEl.pause();
       showMarkerFeedback(pending, stroke.markers.indexOf(pending));
     }
+  } else {
+    // Continuous playback: show each stroke's score/feedback the moment the
+    // scrubber reaches its tick mark, driven purely by marker position vs.
+    // playback time — not by live pose re-detection matching a scan marker
+    // (see processStroke()), which can drift out of sync and previously left
+    // the panel stuck on an old stroke or blank entirely for cached/rescanned
+    // clips. Every marker already has its score/cards computed (from the scan
+    // or from cache), so there's nothing to detect here — just reveal it.
+    const nextMarker = stroke.markers.find(m => {
+      if (m.startTime <= app.lastShownMarkerVT) return false;
+      const revealAt = m.endTime != null ? m.endTime + 0.2 : m.startTime + 1.0;
+      return vt >= revealAt;
+    });
+    if (nextMarker) {
+      app.lastShownMarkerVT = nextMarker.startTime;
+      showMarkerFeedback(nextMarker, stroke.markers.indexOf(nextMarker));
+    }
   }
 });
 
@@ -4464,7 +4657,6 @@ videoEl.addEventListener('error', () => {
   showLoading(false);
   document.getElementById('feedback-scroll').innerHTML = `
     <div class="fb-waiting">
-      <div class="fb-waiting-icon">⚠️</div>
       Couldn't load this video.<br><br>
       Please check your connection and try again.
     </div>`;
@@ -4652,10 +4844,20 @@ async function loop() {
     let _sendImg = videoEl;
     const vw = videoEl.videoWidth, vh = videoEl.videoHeight;
     if (vw && vh && videoEl.readyState >= 2) {
-      if (poseDetCanvas.width  !== vw) poseDetCanvas.width  = vw;
-      if (poseDetCanvas.height !== vh) poseDetCanvas.height = vh;
-      poseDetCtx.drawImage(videoEl, 0, 0);
-      _sendImg = poseDetCanvas;
+      // drawImage() on a cross-origin video can throw a SecurityError on some
+      // mobile browsers even with crossorigin="anonymous" set, if the CORS
+      // response for that particular request is missing/inconsistent. Since this
+      // runs unguarded right before the rAF loop reschedules itself, an uncaught
+      // throw here would silently kill the entire live loop (overlay, ball
+      // detection, everything) with no console trace — it would just stop.
+      try {
+        if (poseDetCanvas.width  !== vw) poseDetCanvas.width  = vw;
+        if (poseDetCanvas.height !== vh) poseDetCanvas.height = vh;
+        poseDetCtx.drawImage(videoEl, 0, 0);
+        _sendImg = poseDetCanvas;
+      } catch (e) {
+        console.warn('[TA] drawImage failed (likely a tainted cross-origin video) — falling back to sending the raw video element:', e);
+      }
     }
     // Fire-and-forget — mirrors _recLoop pattern which is proven to work for live camera.
     // Using await here risks concurrent sends (old scan + new loop) that can permanently
@@ -4886,7 +5088,7 @@ function drawOverlay() {
     ctx.fillStyle = '#f0a020';
     ctx.font = 'bold 11px sans-serif';
     ctx.shadowColor = '#00000099'; ctx.shadowBlur = 3;
-    ctx.fillText('🎾 Racquet', x+4, y > 14 ? y-4 : y+h+13);
+    ctx.fillText('Racquet', x+4, y > 14 ? y-4 : y+h+13);
     ctx.shadowBlur = 0;
   }
 
@@ -5182,19 +5384,30 @@ function plausible(val, key) {
   return val >= lo && val <= hi;
 }
 
-function generateFeedback(m) {
+function generateFeedback(m, type) {
   const cards = [];
+  const isServe = type?.type === 'Serve / Overhead';
 
-  // Knee bend
+  // Knee bend — serves get a looser "too straight" threshold than groundstrokes:
+  // the leg drive naturally extends the knees toward straight through contact,
+  // so the groundstroke thresholds (tuned for a bent, athletic ready-position)
+  // would otherwise flag normal, correct serve technique as a problem.
   const knees = [m.leftKnee, m.rightKnee].filter(v => v !== undefined);
   if (knees.length) {
     const avg = knees.reduce((a,b)=>a+b,0)/knees.length;
     if (!plausible(avg, 'knee')) {
       // skip — measurement is outside physical range, likely a detection error
+    } else if (isServe) {
+      if (avg > 178)
+        cards.push({type:'warn', cat:'Stance', short:'Allow slight knee flex', text:'Legs fully locked throughout — allow a touch of knee bend during your loading phase for a safer, more powerful leg drive.', sev:(avg-178)/178});
+      else if (avg >= 100)
+        cards.push({type:'good', cat:'Stance', short:'Good leg drive', text:'Good knee extension through the serve — solid leg drive into contact.'});
+      else
+        cards.push({type:'info', cat:'Stance', short:'Deep knee bend', text:'Deep knee bend during loading — make sure you extend fully upward into contact.'});
     } else if (avg > 168)
-      cards.push({type:'warn', cat:'Stance', short:'Bend your knees more', text:'Legs nearly straight — bend your knees for an athletic base. This is crucial for stability and power transfer.'});
+      cards.push({type:'warn', cat:'Stance', short:'Bend your knees more', text:'Legs nearly straight — bend your knees for an athletic base. This is crucial for stability and power transfer.', sev:(avg-152)/152});
     else if (avg > 152)
-      cards.push({type:'warn', cat:'Stance', short:'Bend knees a bit more', text:'Bend knees a bit more. A lower center of gravity improves balance and explosive movement.'});
+      cards.push({type:'warn', cat:'Stance', short:'Bend knees a bit more', text:'Bend knees a bit more. A lower center of gravity improves balance and explosive movement.', sev:(avg-152)/152});
     else if (avg >= 115)
       cards.push({type:'good', cat:'Stance', short:'Great knee bend', text:'Excellent knee bend. Your athletic position looks solid and ready to generate power.'});
     else
@@ -5205,13 +5418,13 @@ function generateFeedback(m) {
   const elbow = m.rightElbow ?? m.leftElbow;
   if (elbow !== undefined && plausible(elbow, 'elbow')) {
     if (elbow > 162)
-      cards.push({type:'warn', cat:'Arm', short:'Add slight elbow bend', text:'Arm too straight — keep a slight elbow bend to absorb pace and maintain control through contact.'});
+      cards.push({type:'warn', cat:'Arm', short:'Add slight elbow bend', text:'Arm too straight — keep a slight elbow bend to absorb pace and maintain control through contact.', sev:(elbow-162)/162});
     else if (elbow >= 100)
       cards.push({type:'good', cat:'Arm', short:'Good arm extension', text:'Good arm extension with a natural elbow bend — solid for power transfer.'});
     else if (elbow >= 65)
       cards.push({type:'info', cat:'Arm', short:'Compact elbow angle', text:'Compact elbow angle. Fine during backswing or follow-through — ensure full extension at contact.'});
     else
-      cards.push({type:'warn', cat:'Arm', short:'Extend arm at contact', text:'Elbow too bent at contact. Drive your arm forward through the ball for more power.'});
+      cards.push({type:'warn', cat:'Arm', short:'Extend arm at contact', text:'Elbow too bent at contact. Drive your arm forward through the ball for more power.', sev:(65-elbow)/65});
   }
 
   // Shoulder rotation
@@ -5221,7 +5434,7 @@ function generateFeedback(m) {
     else if (m.shoulderTilt < 16)
       cards.push({type:'info', cat:'Rotation', short:'Rotate shoulders more', text:'Moderate shoulder rotation. Turning more during prep can significantly add racquet-head speed.'});
     else
-      cards.push({type:'warn', cat:'Rotation', short:'Rotate upper body earlier', text:'Shoulders too open to the net. Rotate your upper body earlier in the backswing for cleaner mechanics.'});
+      cards.push({type:'warn', cat:'Rotation', short:'Rotate upper body earlier', text:'Shoulders too open to the net. Rotate your upper body earlier in the backswing for cleaner mechanics.', sev:(m.shoulderTilt-16)/16});
   }
 
   // Trunk lean
@@ -5231,7 +5444,7 @@ function generateFeedback(m) {
     else if (m.trunkLean <= 23)
       cards.push({type:'info', cat:'Posture', short:'Slight trunk lean', text:'Slight trunk lean — a little forward lean is natural; maintain overall balance.'});
     else
-      cards.push({type:'warn', cat:'Posture', short:'Stay more upright', text:'Significant torso lean. Staying more upright improves consistency and reduces back stress.'});
+      cards.push({type:'warn', cat:'Posture', short:'Stay more upright', text:'Significant torso lean. Staying more upright improves consistency and reduces back stress.', sev:(m.trunkLean-23)/23});
   }
 
   // High arm (serve/overhead)
@@ -5259,6 +5472,12 @@ function generateFeedback(m) {
 // unlocks speech for the rest of the session so later async calls work normally.
 function _primeVoiceSynthesis() {
   if (!window.speechSynthesis) return;
+  // Separately from the gesture-unlock issue: iOS can also silently no-op speak()
+  // calls made before its voice list has finished loading (getVoices() starts
+  // empty until 'voiceschanged' fires once). Nudge it to load early too.
+  if (speechSynthesis.getVoices().length === 0) {
+    speechSynthesis.addEventListener('voiceschanged', () => {}, { once: true });
+  }
   try {
     const primer = new SpeechSynthesisUtterance(' ');
     primer.volume = 0.01;
@@ -5279,34 +5498,55 @@ function _setVoiceBadge(text, isError) {
 
 // Speaks the single most useful coaching tip for a just-completed stroke, while
 // recording. Only one short line per stroke — reading out every card would talk
-// over the player's next swing. Actionable ('warn') feedback takes priority over
-// neutral notes so the spoken tip is always the most useful one available.
+// over the player's next swing.
+//
+// Picking "most useful" used to just take the first 'warn' card in the array,
+// which in practice always meant knee bend (Stance is generated first in
+// generateFeedback() and ties always kept the earlier card) — every other
+// landmark got silently drowned out. Now it ranks by actual severity: each
+// warn card carries a `sev` number (how far past the threshold that made it a
+// warning in the first place, normalized to that threshold — see
+// generateFeedback()), so e.g. a badly-straight elbow can outrank a mildly-bent
+// knee instead of losing to it by array position. Landmarks flagged as possibly
+// inaccurate never produce a card at all (generateFeedback()'s plausible()
+// checks skip them), so they can never be picked here either.
 const VOICE_FEEDBACK_PRIORITY = { warn: 0, tip: 1, info: 2, good: 3 };
-function speakStrokeFeedback(m) {
+function speakStrokeFeedback(m, type) {
   if (!window.speechSynthesis) {
-    _setVoiceBadge('🔇 Speech synthesis not supported in this browser', true);
+    _setVoiceBadge('Speech synthesis not supported in this browser', true);
     return;
   }
-  const cards = generateFeedback(m);
+  const cards = generateFeedback(m, type);
   if (!cards.length) {
-    _setVoiceBadge('🔊 No tip generated for this stroke (nothing to say)', false);
+    _setVoiceBadge('No tip generated for this stroke (nothing to say)', false);
     return;
   }
-  const best = cards.reduce((a, b) =>
-    (VOICE_FEEDBACK_PRIORITY[b.type] ?? 4) < (VOICE_FEEDBACK_PRIORITY[a.type] ?? 4) ? b : a);
+  const warnCards = cards.filter(c => c.type === 'warn');
+  const best = warnCards.length
+    ? warnCards.reduce((a, b) => (b.sev ?? 0) > (a.sev ?? 0) ? b : a)
+    : cards.reduce((a, b) =>
+        (VOICE_FEEDBACK_PRIORITY[b.type] ?? 4) < (VOICE_FEEDBACK_PRIORITY[a.type] ?? 4) ? b : a);
   const text = best.short || best.text;
   if (!text) return;
 
   speechSynthesis.cancel(); // don't queue behind a previous stroke's still-playing line
   const utter = new SpeechSynthesisUtterance(text);
-  _setVoiceBadge('🔊 Requested: “' + text + '”', false);
-  utter.onstart = () => _setVoiceBadge('🔊 Speaking: “' + text + '”', false);
-  utter.onerror = (e) => _setVoiceBadge('⚠️ Voice error (' + e.error + '): “' + text + '”', true);
+  // Leaving utter.voice unset relies on the engine's implicit default, which some
+  // browsers handle inconsistently before voices have fully loaded — pick one
+  // explicitly when the list is available.
+  const voices = speechSynthesis.getVoices();
+  if (voices.length) {
+    utter.voice = voices.find(v => v.lang?.startsWith('en')) || voices[0];
+  }
+  _setVoiceBadge('Requested: “' + text + '”', false);
+  utter.onstart = () => _setVoiceBadge('Speaking: “' + text + '”', false);
+  utter.onerror = (e) => _setVoiceBadge('Voice error (' + e.error + '): “' + text + '”', true);
   utter.onend   = () => _setVoiceBadge('✓ Finished: “' + text + '”', false);
   speechSynthesis.speak(utter);
 }
 
-function scoreStroke(m) {
+function scoreStroke(m, type) {
+  const isServe = type?.type === 'Serve / Overhead';
   let pts = 0, max = 0;
   // Outlier values (outside physical plausibility bounds) get 10% weight —
   // they barely affect the total rather than unfairly tanking the score.
@@ -5319,7 +5559,11 @@ function scoreStroke(m) {
     else pts += w * 0.12;
   };
   const knees = [m.leftKnee, m.rightKnee].filter(v=>v!==undefined);
-  if (knees.length) score1(knees.reduce((a,b)=>a+b,0)/knees.length, 115, 155, 30, 'knee');
+  // Serves score against the same looser knee range used in generateFeedback()
+  // (legs naturally straighten through the leg drive at contact) instead of the
+  // groundstroke range, so a technically correct serve doesn't get penalized.
+  const [kneeMin, kneeMax] = isServe ? [100, 178] : [115, 155];
+  if (knees.length) score1(knees.reduce((a,b)=>a+b,0)/knees.length, kneeMin, kneeMax, 30, 'knee');
   score1(m.rightElbow ?? m.leftElbow, 95, 158, 30, 'elbow');
   score1(m.shoulderTilt, 0, 10, 20, 'shoulderTilt');
   score1(m.trunkLean,    0, 13, 20, 'trunkLean');
@@ -5468,7 +5712,7 @@ function feedbackCardsHtml(cards, isMobLayout) {
   if (!cards.length) return '';
   let html = `<div class="fb-section"><div class="fb-lbl">Coaching</div>`;
   for (const c of cards) {
-    const tag = c.type === 'good' ? '✓ Great' : c.type === 'warn' ? '⚠ Improve' : c.type === 'tip' ? '💡 Tip' : 'ℹ Info';
+    const tag = c.type === 'good' ? '✓ Great' : c.type === 'warn' ? '⚠ Improve' : c.type === 'tip' ? 'Tip' : 'ℹ Info';
     if (isMobLayout) {
       const tagWord = c.type === 'good' ? 'Great' : c.type === 'warn' ? 'Improve' : c.type === 'tip' ? 'Tip' : 'Info';
       html += `<div class="fb-card ${c.type}">
@@ -5496,7 +5740,8 @@ const JOINT_ANGLE_METRIC_DEFS = [
 
 // Collapsible joint-angle table, shared between the frozen post-stroke feedback
 // panel and the live per-frame feedback panel shown while recording.
-function jointAngleTableHtml(m, isMobLayout) {
+function jointAngleTableHtml(m, isMobLayout, type) {
+  const isServe = type?.type === 'Serve / Overhead';
   const openAttr = isMobLayout ? '' : ' open';
   let html = `<div class="fb-section"><details class="metrics-details"${openAttr}>
     <summary class="fb-lbl metrics-summary">Joint Angles</summary>
@@ -5506,11 +5751,16 @@ function jointAngleTableHtml(m, isMobLayout) {
       html += `<div class="m-row"><span class="m-name">${def.label}</span><span class="m-val m-dim">low visibility</span></div>`;
       continue;
     }
-    const val        = Math.round(m[def.key]);
+    const val  = Math.round(m[def.key]);
+    // Serves get the same looser knee range used in generateFeedback()/scoreStroke()
+    // (legs naturally straighten through the leg drive at contact) so the color
+    // coding here doesn't flag correct serve technique as "needs improvement".
+    const isKnee = def.key === 'leftKnee' || def.key === 'rightKnee';
+    const good = (isServe && isKnee) ? [100, 178] : def.good;
     const isOutlier  = !plausible(val, def.plausKey);
     const cls        = isOutlier ? 'm-warn'
-                     : val >= def.good[0] && val <= def.good[1] ? 'm-good'
-                     : (val < def.good[0]*0.8 || val > def.good[1]*1.12) ? 'm-bad' : 'm-warn';
+                     : val >= good[0] && val <= good[1] ? 'm-good'
+                     : (val < good[0]*0.8 || val > good[1]*1.12) ? 'm-bad' : 'm-warn';
     const flag       = isOutlier
       ? `<span style="font-size:10px;color:#8b949e;margin-left:5px" title="Value outside normal physical range — may be a detection error">⚠ possibly inaccurate</span>`
       : '';
@@ -5531,7 +5781,6 @@ function renderRecFeedback(lms) {
   if (!lms) {
     scroll.innerHTML = `
       <div class="fb-waiting">
-        <div class="fb-waiting-icon">🎾</div>
         Get in frame to see live joint-angle feedback.
       </div>`;
     return;
@@ -5543,7 +5792,6 @@ function renderRecFeedback(lms) {
     const noDetection = bodyVis < 0.15;
     scroll.innerHTML = `
       <div class="fb-waiting">
-        <div class="fb-waiting-icon">⚠️</div>
         <div style="font-size:13px;font-weight:600;color:#d29922;margin-bottom:6px">
           ${noDetection ? 'Player outside frame' : 'Player partially out of frame'}
         </div>
@@ -5572,6 +5820,10 @@ function renderRecFeedback(lms) {
 
 function showMarkerFeedback(marker, idx) {
   if (!marker.metrics && !marker.cards) return;
+  // Track which marker is on screen regardless of how it got there (auto-pause,
+  // the continuous-playback reveal, or a direct click on its tick) — notAStroke()
+  // uses this to know exactly which marker "Not a stroke" should remove.
+  stroke.lastDetectedStartVT = marker.startTime;
   stroke.frozenResult = {
     metrics:        marker.metrics || {},
     cards:          marker.cards   || [],
@@ -5595,7 +5847,6 @@ function renderFrozenFeedback() {
     const noDetection = bodyVis < 0.15;
     scroll.innerHTML = `
       <div class="fb-waiting">
-        <div class="fb-waiting-icon">⚠️</div>
         <div style="font-size:13px;font-weight:600;color:#d29922;margin-bottom:6px">
           ${noDetection ? 'Player outside frame' : 'Player partially out of frame'}
         </div>
@@ -5620,7 +5871,7 @@ function renderFrozenFeedback() {
 
   // Stroke label with type
   const t = stroke.frozenResult.type;
-  const typeLabel = t ? `${t.icon} ${t.type}` : 'Stroke';
+  const typeLabel = t ? (t.icon ? `${t.icon} ${t.type}` : t.type) : 'Stroke';
 
   // Score
   let sc, bc, desc;
@@ -5664,24 +5915,26 @@ function renderFrozenFeedback() {
   html += feedbackCardsHtml(cards, isMobLayout);
 
   // Metrics table (below coaching; collapsible on mobile)
-  html += jointAngleTableHtml(m, isMobLayout);
+  html += jointAngleTableHtml(m, isMobLayout, t);
 
   scroll.innerHTML = html;
   hideUndoBar();
 
-  if (app.strokeByStrokeMode) {
-    scroll.innerHTML += `
-      <div class="sbs-actions">
-        <button class="sbs-next"   onclick="nextStroke()">▶ Next stroke</button>
-        <button class="sbs-reject" onclick="notAStroke()">✕ Not a stroke</button>
-      </div>`;
-  }
+  // "Not a stroke" is useful regardless of playback mode — a misdetection is a
+  // misdetection whether or not auto-pause happened to be on when it showed up.
+  // "Next stroke" only makes sense when auto-pause actually paused the video for
+  // this stroke; showing it during normal continuous playback (already playing)
+  // would just be a no-op button.
+  scroll.innerHTML += `
+    <div class="sbs-actions">
+      ${app.strokeByStrokeMode ? `<button class="sbs-next" onclick="nextStroke()">▶ Next stroke</button>` : ''}
+      <button class="sbs-reject" onclick="notAStroke()">✕ Not a stroke</button>
+    </div>`;
 }
 
 function setFeedbackWaiting(msg) {
   document.getElementById('feedback-scroll').innerHTML = `
     <div class="fb-waiting">
-      <div class="fb-waiting-icon">🎾</div>
       ${msg || 'Play the video and swing.<br>Feedback will appear after each stroke.'}
     </div>`;
 }
