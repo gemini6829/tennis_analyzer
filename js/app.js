@@ -256,10 +256,7 @@ function drawCalibCanvas() {
 
       // If snapping, also preview the closing segment back to first
       if (snapping && pts.length >= 3) {
-        ctx.beginPath();
-        ctx.moveTo(pts[0].x * cw, pts[0].y * ch);
-        ctx.lineTo(pts[pts.length - 1].x * cw, pts[pts.length - 1].y * ch);
-        // already drawn above; just fill a preview polygon
+        // Closing segment is already drawn by the ghost-line stroke above; just fill a preview polygon
         ctx.beginPath();
         ctx.moveTo(pts[0].x * cw, pts[0].y * ch);
         for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x * cw, pts[i].y * ch);
