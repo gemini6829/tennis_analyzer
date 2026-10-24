@@ -383,10 +383,14 @@ function resetBallMotion() {
   ballPendingDet    = null;
   app.ballTrail     = [];
   app.liveBallPos   = null;
-  app.debugPixelHistory  = [];
   app.debugClusterHistory = [];
-  app.debugTransitPixels = [];
   app.debugClusters      = [];
+  // Clear the camera-shift streak too — otherwise a partial count from before
+  // a seek/clip-change survives it, and one unrelated over-threshold frame at
+  // the new position can falsely complete the "3 consecutive frames" streak.
+  app._cameraShiftFrames = 0;
+  app._cameraShiftLastT  = null;
+  hideCameraShiftBar();
 }
 
 // Build a list of normalised exclude boxes covering all detected people.
@@ -659,7 +663,7 @@ function detectBall(ctx2d, w, h, searchRegions, courtPoly, excludeMask) {
       const clH = maxY - minY + 1;
       if (size < MIN_CLUSTER || size > MAX_CLUSTER || clW > MAX_BBOX || clH > MAX_BBOX) continue;
       const MAX_ASPECT = 2.0;
-      if (clW === 0 || clH === 0 || Math.max(clW, clH) / Math.min(clW, clH) > MAX_ASPECT) continue;
+      if (Math.max(clW, clH) / Math.min(clW, clH) > MAX_ASPECT) continue;
 
       clusters.push({
         x: minX / w,         y: minY / h,
@@ -701,16 +705,12 @@ function detectBall(ctx2d, w, h, searchRegions, courtPoly, excludeMask) {
     );
   }
 
-  // Build debug pixel list from surviving clusters.
-  const debugPx = [];
-  for (const cl of clusters) {
-    for (const pi of cl._px) debugPx.push({ x: (pi % w) / w, y: Math.floor(pi / w) / h });
-    delete cl._px;
-  }
+  // Clear the pixel-index buffer before clusters get stored in history — keeps
+  // debugClusterHistory entries lean (it only needs count/bbox, not every pixel).
+  for (const cl of clusters) delete cl._px;
 
-  app.debugClusters      = clusters;
-  app.debugTransitPixels = debugPx;
-  app.ballDebugCount     = clusters.length;
+  app.debugClusters  = clusters;
+  app.ballDebugCount = clusters.length;
 
   if (clusters.length === 0) return null;
 
@@ -894,26 +894,43 @@ function setStatus(state, text) {
 }
 
 // ════════════════════════════════════════════════════════════
-//  USER SETTINGS  (handedness — persisted to Firestore)
+//  USER SETTINGS  (handedness + overlay/feedback toggles — persisted to Firestore)
 // ════════════════════════════════════════════════════════════
 async function loadUserSettings(userId) {
   try {
-    const doc = await fbDb.collection('users').doc(userId).get();
-    if (doc.exists && doc.data().handedness) {
-      playerHandedness = doc.data().handedness;
+    const doc  = await fbDb.collection('users').doc(userId).get();
+    const data = doc.exists ? doc.data() : {};
+    if (data.handedness) {
+      playerHandedness = data.handedness;
       updateHandednessBtn();
     }
+    // Fall back to the same defaults the app state is initialised with, for
+    // settings this account has never changed (or never saved before this
+    // was added to Firestore).
+    app.ballDetectionOverlay = data.ballDetectionOverlay ?? true;
+    app.angleOverlay         = data.angleOverlay         ?? false;
+    app.voiceFeedbackEnabled = data.voiceFeedbackEnabled  ?? true;
+    app.strokeByStrokeMode   = data.strokeByStrokeMode    ?? false;
+    const sbsToggle = document.getElementById('sbs-toggle');
+    if (sbsToggle) sbsToggle.checked = app.strokeByStrokeMode;
   } catch(e) { console.warn('[TA] Could not load settings:', e); }
+}
+
+// Persists one setting field to this account's Firestore user doc. Silently
+// no-ops when signed out — callers still update the in-memory app.* value
+// first, so the UI stays responsive even if the save can't happen yet.
+async function saveUserSetting(key, value) {
+  const userId = fbAuth.currentUser?.uid;
+  if (!userId) return;
+  try {
+    await fbDb.collection('users').doc(userId).set({ [key]: value }, { merge: true });
+  } catch(e) { console.warn('[TA] Could not save setting (' + key + '):', e); }
 }
 
 async function toggleHandedness() {
   playerHandedness = playerHandedness === 'right' ? 'left' : 'right';
   updateHandednessBtn();
-  const userId = fbAuth.currentUser?.uid;
-  if (!userId) return;
-  try {
-    await fbDb.collection('users').doc(userId).set({ handedness: playerHandedness }, { merge: true });
-  } catch(e) { console.warn('[TA] Could not save handedness:', e); }
+  await saveUserSetting('handedness', playerHandedness);
 }
 
 function updateHandednessBtn() {
@@ -1050,9 +1067,7 @@ document.addEventListener('webkitfullscreenchange', _updateAppFsBtn);
 
 function settingsSetHandedness(h) {
   if (playerHandedness === h) return;
-  toggleHandedness();
-  document.getElementById('sm-hand-right').classList.toggle('active', h === 'right');
-  document.getElementById('sm-hand-left').classList.toggle('active', h === 'left');
+  toggleHandedness(); // already updates the sm-hand-right/left buttons via updateHandednessBtn()
 }
 
 function settingsToggleAutoPause(on) {
@@ -1060,15 +1075,17 @@ function settingsToggleAutoPause(on) {
   // Keep existing #sbs-toggle in sync
   const el = document.getElementById('sbs-toggle');
   if (el) el.checked = on;
+  saveUserSetting('strokeByStrokeMode', on);
 }
 
 function settingsToggleBallOverlay(on) {
   app.ballDetectionOverlay = on;
-  updateBallIndicatorOverlayState();
+  saveUserSetting('ballDetectionOverlay', on);
 }
 
 function settingsToggleAngleOverlay(on) {
   app.angleOverlay = on;
+  saveUserSetting('angleOverlay', on);
 }
 
 function settingsToggleVoiceFeedback(on) {
@@ -1077,26 +1094,7 @@ function settingsToggleVoiceFeedback(on) {
     if (window.speechSynthesis) speechSynthesis.cancel();
     document.getElementById('rec-voice-badge')?.classList.remove('visible');
   }
-}
-
-function toggleBallIndicator() {
-  app.ballDetectionOverlay = !app.ballDetectionOverlay;
-  // Keep settings modal toggle in sync
-  const toggle = document.getElementById('sm-ball-toggle');
-  if (toggle) toggle.checked = app.ballDetectionOverlay;
-  updateBallIndicatorOverlayState();
-}
-
-function updateBallIndicatorOverlayState() {
-  const el = document.getElementById('ball-indicator');
-  if (!el) return;
-  if (app.ballDetectionOverlay) {
-    el.classList.remove('overlay-off');
-    el.title = 'Ball detection overlay — click to hide';
-  } else {
-    el.classList.add('overlay-off');
-    el.title = 'Ball detection overlay is off — click to show';
-  }
+  saveUserSetting('voiceFeedbackEnabled', on);
 }
 
 function settingsOpenCalib() {
@@ -1135,6 +1133,12 @@ document.getElementById('auth-reset').addEventListener('click', async () => {
 });
 
 async function handleAuthSubmit() {
+  const btn = document.getElementById('auth-submit');
+  // The Enter-key shortcuts on the password/confirm fields call this function
+  // directly, bypassing the (disabled) button — so the re-entry guard has to
+  // live here rather than relying on the button's disabled state alone.
+  if (btn.disabled) return;
+
   const email = document.getElementById('auth-email').value.trim();
   const pass  = document.getElementById('auth-password').value;
   const conf  = document.getElementById('auth-confirm').value;
@@ -1144,7 +1148,6 @@ async function handleAuthSubmit() {
   if (authMode === 'signup' && pass !== conf) { showAuthError('Passwords do not match.'); return; }
   if (authMode === 'signup' && pass.length < 6) { showAuthError('Password must be at least 6 characters.'); return; }
 
-  const btn = document.getElementById('auth-submit');
   btn.disabled = true;
   btn.textContent = '…';
 
@@ -1185,8 +1188,16 @@ function friendlyAuthError(e) {
 }
 
 document.getElementById('logout-btn').addEventListener('click', async () => {
-  stopLoop();
+  // Stop every background process before tearing down auth — otherwise the
+  // scan loop / camera keep running (and racing saveScanResults() against a
+  // currentUser that's about to go null) after the user thinks they've signed out.
+  stopScan();               // signal any in-progress background scan to bail
+  window.closeRecordModal(); // stop MediaRecorder + release the camera, if recording
+  stopLoop();               // stop the live-detection animation frame loop
   videoEl.pause();
+  // Flush whatever stroke results/deletions are in memory while we still have
+  // a valid signed-in user — saveScanResults() silently no-ops once signed out.
+  await saveScanResults();
   app.activeClipId = null;
   app.landmarks = null;
   app.racquetBox = null;
@@ -1219,10 +1230,13 @@ function subscribeVideos(userId) {
           const freshClip = app.clips.find(c => c.id === app.activeClipId);
 
           // Guard against the cache-then-server double-fire race: if Firestore just
-          // delivered real scan results for the active clip while a scan is already
-          // running (started from stale cache data), cancel the scan and use the
-          // cached results instead.
-          if (app.scanning && freshClip?.scanResults?.length && (freshClip.scanVersion ?? 0) >= SCAN_VERSION) {
+          // delivered real, COMPLETE scan results for the active clip while a scan is
+          // already running (started from stale cache data), cancel the scan and use
+          // the cached results instead. Must require scanComplete — otherwise a
+          // partial cached result (loadCachedScan() rejects it) would still stop the
+          // active scan here first, leaving nothing running and nothing loaded.
+          if (app.scanning && freshClip?.scanResults?.length && (freshClip.scanVersion ?? 0) >= SCAN_VERSION
+              && freshClip.scanComplete === true) {
             stopScan();
             loadCachedScan(freshClip);
           }
@@ -1301,8 +1315,16 @@ async function deleteClip(clipId) {
   try {
     if (clip.storagePath) await fbStorage.ref(clip.storagePath).delete();
     await fbDb.collection('users').doc(userId).collection('videos').doc(clipId).delete();
+    // Court calibration also lives in localStorage, keyed by clip ID, outside
+    // Firestore — clean it up too, or it's an orphaned entry left behind forever.
+    try { localStorage.removeItem(calibLocalKey(clipId)); } catch(e) {}
 
     if (app.activeClipId === clipId) {
+      // Stop any scan still running against this clip — otherwise it keeps
+      // processing frames in the background and its eventual saveScanResults()
+      // races the just-deleted Firestore doc (harmless since app.activeClipId
+      // is cleared below, but pointless wasted work in the meantime).
+      stopScan();
       stopLoop();
       videoEl.pause();
       videoEl.removeAttribute('src');
@@ -1548,8 +1570,10 @@ videoEl.addEventListener('ended', () => {
   document.getElementById('live-dot').classList.add('off');
   stopLoop();
   resetBallMotion();
-  // If video ends during scan (shouldn't happen with seek-based scan, but just in case)
-  if (app.scanning) { app.scanning = false; showScanCompleteUI(); }
+  // Do NOT touch app.scanning here — the background scan runs on its own
+  // separate scanEl with its own independent timeline/seek position. The
+  // main video reaching the end of normal playback has nothing to do with
+  // whether the scan (which could be anywhere in the video) has finished.
 });
 
 videoEl.addEventListener('seeked', () => {
@@ -1659,7 +1683,7 @@ function syncCanvas() {
   // Intrinsic video dimensions
   const vw = videoEl.videoWidth  || vr.width;
   const vh = videoEl.videoHeight || vr.height;
-  if (!vw || !vh || vr.width < 1 || vr.height < 1) return;
+  if (vr.width < 1 || vr.height < 1) return;
 
   // Calculate the actual rendered content rect within the element
   // (object-fit: contain — letterbox on the short axis)
@@ -1713,8 +1737,14 @@ window.addEventListener('resize', () => { syncCanvas(); drawOverlay(); });
 // ════════════════════════════════════════════════════════════
 function startLoop() {
   stopLoop();
-  app.detecting   = false; // clear any stuck flag from a detection that ended mid-await
-  app.scanSending = false; // ensure stale scan routing doesn't discard live results
+  app.detecting = false; // clear any stuck flag from a detection that ended mid-await
+  // Only clear a STALE scanSending flag left over from a scan that already
+  // stopped — onPoseResults() routes purely on this flag, so if a scan is
+  // still actively running, clearing it here would steal its in-flight pose
+  // result into live processing instead of processScanStroke(). loop() below
+  // already skips real detection work entirely while app.scanning is true,
+  // so there's nothing for the live path to gain by resetting it in that case.
+  if (!app.scanning) app.scanSending = false;
   loop();
 }
 
@@ -1785,12 +1815,6 @@ async function loop() {
       const playerMask = buildPlayerMask(app.landmarks, 640, 360);
       const rawPos = detectBall(ballDetCtx, 640, 360, searchRegions, courtCalib?.points, playerMask);
 
-      // Record surviving transit pixels for the debug overlay.
-      if (!app.debugPixelHistory) app.debugPixelHistory = [];
-      if (app.debugTransitPixels && app.debugTransitPixels.length > 0)
-        app.debugPixelHistory.push({ pixels: app.debugTransitPixels, t: now });
-      app.debugPixelHistory = app.debugPixelHistory.filter(e => now - e.t < 2000);
-
       // Record cluster bounding boxes for the cluster outline debug overlay.
       if (!app.debugClusterHistory) app.debugClusterHistory = [];
       if (app.debugClusters && app.debugClusters.length > 0)
@@ -1804,11 +1828,6 @@ async function loop() {
         app.ballTrail.push({ x: rawPos.x, y: rawPos.y, t: now });
         const TRAIL_MS = 3000;
         app.ballTrail = app.ballTrail.filter(p => now - p.t < TRAIL_MS);
-      }
-      const dot = document.getElementById('ball-indicator-dot');
-      if (dot) {
-        dot.className = (!app.ballDetectionOverlay) ? 'inactive'
-                      : app.liveBallPos             ? 'active' : 'inactive';
       }
     } catch (e) {
       console.warn('[TA] Ball detection:', e);
@@ -2021,47 +2040,6 @@ function drawOverlay() {
 
   }
 
-  // Transit pixel overlay — pixels that passed transit + color + MIN_TRANSIT checks.
-  // Dark border drawn first so the bright fill is always readable against any background.
-  if (app.debugPixelHistory && app.debugPixelHistory.length > 0) {
-    const nowT    = performance.now();
-    const FADE_MS = 2000;
-    // for (let pass = 0; pass < 2; pass++) {
-    //   for (const entry of app.debugPixelHistory) {
-    //     const frac = Math.max(0, 1 - (nowT - entry.t) / FADE_MS);
-    //     if (frac <= 0) continue;
-    //     if (pass === 0) {
-    //       // Dark outline (5×5 black square behind each pixel)
-    //       ctx.fillStyle = `rgba(0,0,0,${(frac * 0.85).toFixed(2)})`;
-    //       for (const p of entry.pixels)
-    //         ctx.fillRect(p.x * canvas.width - 2, p.y * canvas.height - 2, 5, 5);
-    //     } else {
-    //       // Bright orange fill (3×3)
-    //       ctx.fillStyle = `rgba(255,200,50,${(frac * 0.95).toFixed(2)})`;
-    //       for (const p of entry.pixels)
-    //         ctx.fillRect(p.x * canvas.width - 1, p.y * canvas.height - 1, 3, 3);
-    //     }
-    //   }
-    // }
-    // for (const entry of app.debugPixelHistory) {
-    //   const frac = Math.max(0, 1 - (nowT - entry.t) / FADE_MS);
-    //   if (frac <= 0 || entry.pixels.length === 0) continue;
-    //   // Compute bounding box of motion pixels
-    //   let minPx = Infinity, maxPx = -Infinity, minPy = Infinity, maxPy = -Infinity;
-    //   for (const p of entry.pixels) {
-    //     const sx = p.x * canvas.width, sy = p.y * canvas.height;
-    //     if (sx < minPx) minPx = sx; if (sx > maxPx) maxPx = sx;
-    //     if (sy < minPy) minPy = sy; if (sy > maxPy) maxPy = sy;
-    //   }
-    //   const cx = (minPx + maxPx) / 2, cy = (minPy + maxPy) / 2;
-    //   const r  = Math.max(maxPx - minPx, maxPy - minPy) / 2 + 4;
-    //   ctx.beginPath();
-    //   ctx.arc(cx, cy, r, 0, Math.PI * 2);
-    //   ctx.fillStyle = `rgba(255,160,30,${(frac * 0.45).toFixed(2)})`;
-    //   ctx.fill();
-    // }
-  }
-  // (old cluster HUD removed — replaced by new-circle HUD below)
 
   // Racquet box
   if (app.racquetBox) {
@@ -2147,7 +2125,6 @@ function drawOverlay() {
     // entirely so they leave no traces in future frames.
     if (newCircleCount > 5) {
       app.debugClusterHistory = app.debugClusterHistory.filter(e => e.t !== newestT);
-      app.debugPixelHistory   = app.debugPixelHistory  .filter(e => e.t !== newestT);
     }
 
     // Second pass: only draw if within threshold AND overlay is enabled.
@@ -2158,25 +2135,11 @@ function drawOverlay() {
         ctx.shadowBlur = 4;
         ctx.strokeStyle = `rgba(0,230,255,${(c.frac * 0.95).toFixed(2)})`;
         ctx.lineWidth = 1.5;
-        // ctx.strokeRect(ox, oy, ow, oh);
         ctx.beginPath();
         ctx.arc(c.circX, c.circY, c.circR, 0, Math.PI * 2);
         ctx.fillStyle = `rgba(255,160,30,${(c.frac * 0.45).toFixed(2)})`;
         ctx.fill();
         ctx.stroke();
-
-        // Count + dimensions label directly above (or below if near top)
-        // const bw = Math.round(cl.w * 640), bh = Math.round(cl.h * 360);
-        // const label = `${cl.count}px ${bw}×${bh}`;
-        // ctx.font = 'bold 10px monospace';
-        // const tw = ctx.measureText(label).width;
-        // const tx = Math.max(0, Math.min(ox + (ow - tw) / 2, cw - tw - 2));
-        // const ty = oy > 14 ? oy - 3 : oy + oh + 11;
-        // ctx.fillStyle = `rgba(0,0,0,${(frac * 0.75).toFixed(2)})`;
-        // ctx.fillRect(tx - 2, ty - 9, tw + 4, 11);
-        // ctx.fillStyle = `rgba(0,230,255,${frac.toFixed(2)})`;
-        // ctx.shadowBlur = 0;
-        // ctx.fillText(label, tx, ty);
         ctx.restore();
       }
     }
@@ -2195,8 +2158,6 @@ function drawOverlay() {
         hideCameraShiftBar();
       }
     }
-
-    // (new-circle HUD removed)
   }
 }
 
@@ -2250,15 +2211,16 @@ function drawRecOverlay(rctx, rc) {
   const drawRecLbl = (ai, bi, ci) => {
     const a = lms[ai], b = lms[bi], c = lms[ci];
     if (!a || !b || !c || a.visibility < 0.45 || b.visibility < 0.45 || c.visibility < 0.45) return;
-    const ang = angleDeg({x:a.x,y:a.y},{x:b.x,y:b.y},{x:c.x,y:c.y});
+    const ang = angleDeg({x:a.x,y:a.y},{x:b.x,y:b.y},{x:c.x,y:c.y}, W / H);
     const isElbow   = bi === LM.L_ELBOW || bi === LM.R_ELBOW;
     const goodMin   = isElbow ? 80  : 115;
     const goodMax   = isElbow ? 155 : 165;
     const plausKey  = isElbow ? 'elbow' : 'knee';
+    // Physically implausible — almost certainly a detection error. Don't draw
+    // a number for it at all, rather than showing one just in a muted color.
+    if (!plausible(ang, plausKey)) return;
     let color;
-    if (!plausible(ang, plausKey)) {
-      color = '#8b949e';  // grey  — unrealistic, likely detection artifact
-    } else if (ang >= goodMin && ang <= goodMax) {
+    if (ang >= goodMin && ang <= goodMax) {
       color = '#3fb950';  // green — within good range
     } else if ((ang >= goodMin - YELLOW_MARGIN && ang < goodMin) ||
                (ang > goodMax && ang <= goodMax + YELLOW_MARGIN)) {
@@ -2283,10 +2245,13 @@ function drawRecOverlay(rctx, rc) {
 function drawAngleLabel(lms, ai, bi, ci) {
   const a = lms[ai], b = lms[bi], c = lms[ci];
   if (!a || !b || !c || a.visibility < 0.45 || b.visibility < 0.45 || c.visibility < 0.45) return;
-  const ang = angleDeg({x:a.x,y:a.y},{x:b.x,y:b.y},{x:c.x,y:c.y});
-  const pt  = lmPx(b);
+  const ang = angleDeg({x:a.x,y:a.y},{x:b.x,y:b.y},{x:c.x,y:c.y}, videoEl.videoWidth / videoEl.videoHeight);
   const isElbow = bi === LM.L_ELBOW || bi === LM.R_ELBOW;
-  const good    = isElbow ? (ang >= 80 && ang <= 155) : (ang >= 115 && ang <= 165);
+  // Physically implausible — almost certainly a detection error. Don't draw
+  // a number for it at all.
+  if (!plausible(ang, isElbow ? 'elbow' : 'knee')) return;
+  const pt   = lmPx(b);
+  const good = isElbow ? (ang >= 80 && ang <= 155) : (ang >= 115 && ang <= 165);
   ctx.font = 'bold 11px monospace';
   ctx.shadowColor = '#00000099'; ctx.shadowBlur = 3;
   ctx.fillStyle = good ? '#56d364' : '#ffa657';
@@ -2297,8 +2262,14 @@ function drawAngleLabel(lms, ai, bi, ci) {
 // ════════════════════════════════════════════════════════════
 //  MATH
 // ════════════════════════════════════════════════════════════
-function angleDeg(a, b, c) {
-  const r = Math.atan2(c.y-b.y, c.x-b.x) - Math.atan2(a.y-b.y, a.x-b.x);
+// aspect = frame width / height. MediaPipe landmarks normalize x by image
+// width and y by image height independently, so for any non-square frame
+// (practically every real video) the raw x/y aren't on the same physical
+// scale — computing atan2 directly on them distorts the angle. Scaling x by
+// the aspect ratio puts both axes back on a common scale before measuring.
+function angleDeg(a, b, c, aspect = 1) {
+  const ax = a.x * aspect, bx = b.x * aspect, cx = c.x * aspect;
+  const r = Math.atan2(c.y-b.y, cx-bx) - Math.atan2(a.y-b.y, ax-bx);
   let d = Math.abs(r * 180 / Math.PI);
   if (d > 180) d = 360 - d;
   return d;
@@ -2309,10 +2280,10 @@ function vis(lm, t=0.4) { return lm && lm.visibility >= t; }
 // ════════════════════════════════════════════════════════════
 //  METRICS COMPUTATION
 // ════════════════════════════════════════════════════════════
-function computeMetrics(lms) {
+function computeMetrics(lms, aspect = 1) {
   const m = {};
   const a = (ai,bi,ci) => vis(lms[ai]) && vis(lms[bi]) && vis(lms[ci])
-    ? angleDeg({x:lms[ai].x,y:lms[ai].y},{x:lms[bi].x,y:lms[bi].y},{x:lms[ci].x,y:lms[ci].y})
+    ? angleDeg({x:lms[ai].x,y:lms[ai].y},{x:lms[bi].x,y:lms[bi].y},{x:lms[ci].x,y:lms[ci].y}, aspect)
     : undefined;
 
   m.leftElbow  = a(LM.L_SHOULDER, LM.L_ELBOW, LM.L_WRIST);
@@ -2321,15 +2292,21 @@ function computeMetrics(lms) {
   m.rightKnee  = a(LM.R_HIP,      LM.R_KNEE,  LM.R_ANKLE);
 
   if (vis(lms[LM.L_SHOULDER]) && vis(lms[LM.R_SHOULDER])) {
-    const dx = lms[LM.R_SHOULDER].x - lms[LM.L_SHOULDER].x;
+    const dx = (lms[LM.R_SHOULDER].x - lms[LM.L_SHOULDER].x) * aspect;
     const dy = lms[LM.R_SHOULDER].y - lms[LM.L_SHOULDER].y;
-    m.shoulderTilt = Math.abs(Math.atan2(dy, dx) * 180 / Math.PI);
+    let tilt = Math.abs(Math.atan2(dy, dx) * 180 / Math.PI); // 0-180
+    // A level shoulder line has the same physical tilt whichever shoulder you
+    // measure it from — but when body rotation flips which shoulder is on
+    // which side in the image, dx flips sign and this would otherwise read
+    // as ~180° instead of ~0°. Fold the upper half back down to [0,90].
+    if (tilt > 90) tilt = 180 - tilt;
+    m.shoulderTilt = tilt;
   }
 
   if (vis(lms[LM.L_SHOULDER]) && vis(lms[LM.R_SHOULDER]) && vis(lms[LM.L_HIP]) && vis(lms[LM.R_HIP])) {
-    const msX = (lms[LM.L_SHOULDER].x + lms[LM.R_SHOULDER].x) / 2;
+    const msX = (lms[LM.L_SHOULDER].x + lms[LM.R_SHOULDER].x) / 2 * aspect;
     const msY = (lms[LM.L_SHOULDER].y + lms[LM.R_SHOULDER].y) / 2;
-    const mhX = (lms[LM.L_HIP].x + lms[LM.R_HIP].x) / 2;
+    const mhX = (lms[LM.L_HIP].x + lms[LM.R_HIP].x) / 2 * aspect;
     const mhY = (lms[LM.L_HIP].y + lms[LM.R_HIP].y) / 2;
     m.trunkLean = Math.abs(Math.atan2(msX - mhX, mhY - msY) * 180 / Math.PI);
   }
@@ -2383,11 +2360,11 @@ function generateFeedback(m, type) {
       // skip — measurement is outside physical range, likely a detection error
     } else if (isServe) {
       if (avg > 178)
-        cards.push({type:'warn', cat:'Stance', short:'Allow slight knee flex', text:'Legs fully locked throughout — allow a touch of knee bend during your loading phase for a safer, more powerful leg drive.', sev:(avg-178)/178});
+        cards.push({type:'warn', cat:'Stance', short:'Allow slight knee flex', text:'Legs very straight on average — allow a touch of knee bend during your loading phase for a safer, more powerful leg drive.', sev:(avg-178)/178});
       else if (avg >= 100)
-        cards.push({type:'good', cat:'Stance', short:'Good leg drive', text:'Good knee extension through the serve — solid leg drive into contact.'});
+        cards.push({type:'good', cat:'Stance', short:'Good leg drive', text:'Good knee extension through the serve — solid leg drive.'});
       else
-        cards.push({type:'info', cat:'Stance', short:'Deep knee bend', text:'Deep knee bend during loading — make sure you extend fully upward into contact.'});
+        cards.push({type:'info', cat:'Stance', short:'Deep knee bend', text:'Deep knee bend on average this swing — make sure you extend fully upward into contact.'});
     } else if (avg > 168)
       cards.push({type:'warn', cat:'Stance', short:'Bend your knees more', text:'Legs nearly straight — bend your knees for an athletic base. This is crucial for stability and power transfer.', sev:(avg-152)/152});
     else if (avg > 152)
@@ -2398,8 +2375,10 @@ function generateFeedback(m, type) {
       cards.push({type:'info', cat:'Stance', short:'Very deep knee bend', text:'Very deep knee bend — make sure you can still transfer weight and move laterally.'});
   }
 
-  // Elbow
-  const elbow = m.rightElbow ?? m.leftElbow;
+  // Elbow — prefer the dominant (hitting) arm's elbow, matching playerHandedness,
+  // falling back to the other arm only when the dominant one isn't visible.
+  const isRightHanded = playerHandedness !== 'left';
+  const elbow = isRightHanded ? (m.rightElbow ?? m.leftElbow) : (m.leftElbow ?? m.rightElbow);
   if (elbow !== undefined && plausible(elbow, 'elbow')) {
     if (elbow > 162)
       cards.push({type:'warn', cat:'Arm', short:'Add slight elbow bend', text:'Arm too straight — keep a slight elbow bend to absorb pace and maintain control through contact.', sev:(elbow-162)/162});
@@ -2408,23 +2387,25 @@ function generateFeedback(m, type) {
     else if (elbow >= 65)
       cards.push({type:'info', cat:'Arm', short:'Compact elbow angle', text:'Compact elbow angle. Fine during backswing or follow-through — ensure full extension at contact.'});
     else
-      cards.push({type:'warn', cat:'Arm', short:'Extend arm at contact', text:'Elbow too bent at contact. Drive your arm forward through the ball for more power.', sev:(65-elbow)/65});
+      cards.push({type:'warn', cat:'Arm', short:'Extend arm at contact', text:'Elbow staying compact through the swing on average. Drive your arm forward through the ball for more power.', sev:(65-elbow)/65});
   }
 
-  // Shoulder rotation
+  // Shoulder tilt — how level the shoulder line is (vertical tilt/roll between
+  // the two shoulders), not how far the shoulders have turned toward the net.
+  // That's a different, unmeasured concept — don't conflate the two here.
   if (m.shoulderTilt !== undefined && plausible(m.shoulderTilt, 'shoulderTilt')) {
     if (m.shoulderTilt < 7)
-      cards.push({type:'good', cat:'Rotation', short:'Great shoulder turn', text:'Great shoulder turn — you\'re well-rotated sideways to the net, loading the kinetic chain perfectly.'});
+      cards.push({type:'good', cat:'Posture', short:'Shoulders level', text:'Shoulders level on average — balanced upper-body line.'});
     else if (m.shoulderTilt < 16)
-      cards.push({type:'info', cat:'Rotation', short:'Rotate shoulders more', text:'Moderate shoulder rotation. Turning more during prep can significantly add racquet-head speed.'});
+      cards.push({type:'info', cat:'Posture', short:'Slight shoulder tilt', text:'Slight shoulder tilt. Keeping shoulders level helps maintain consistent balance and contact height.'});
     else
-      cards.push({type:'warn', cat:'Rotation', short:'Rotate upper body earlier', text:'Shoulders too open to the net. Rotate your upper body earlier in the backswing for cleaner mechanics.', sev:(m.shoulderTilt-16)/16});
+      cards.push({type:'warn', cat:'Posture', short:'Shoulders tilted', text:'Shoulders noticeably tilted — one side dropping lower than the other can throw off balance and contact point.', sev:(m.shoulderTilt-16)/16});
   }
 
   // Trunk lean
   if (m.trunkLean !== undefined && plausible(m.trunkLean, 'trunkLean')) {
     if (m.trunkLean <= 11)
-      cards.push({type:'good', cat:'Posture', short:'Good upright posture', text:'Good upright spine alignment through the stroke.'});
+      cards.push({type:'good', cat:'Posture', short:'Good upright posture', text:'Good upright spine alignment on average.'});
     else if (m.trunkLean <= 23)
       cards.push({type:'info', cat:'Posture', short:'Slight trunk lean', text:'Slight trunk lean — a little forward lean is natural; maintain overall balance.'});
     else
@@ -2543,19 +2524,25 @@ function scoreStroke(m, type) {
     else pts += w * 0.12;
   };
   const knees = [m.leftKnee, m.rightKnee].filter(v=>v!==undefined);
+  // Ranges below match generateFeedback()'s "good" tier exactly, so the score
+  // and the feedback cards never disagree about the same stroke.
   // Serves score against the same looser knee range used in generateFeedback()
   // (legs naturally straighten through the leg drive at contact) instead of the
   // groundstroke range, so a technically correct serve doesn't get penalized.
-  const [kneeMin, kneeMax] = isServe ? [100, 178] : [115, 155];
+  const [kneeMin, kneeMax] = isServe ? [100, 178] : [115, 152];
   if (knees.length) score1(knees.reduce((a,b)=>a+b,0)/knees.length, kneeMin, kneeMax, 30, 'knee');
-  score1(m.rightElbow ?? m.leftElbow, 95, 158, 30, 'elbow');
-  score1(m.shoulderTilt, 0, 10, 20, 'shoulderTilt');
-  score1(m.trunkLean,    0, 13, 20, 'trunkLean');
+  // Prefer the dominant (hitting) arm's elbow, matching playerHandedness —
+  // see the matching comment in generateFeedback().
+  const isRightHandedScore = playerHandedness !== 'left';
+  score1(isRightHandedScore ? (m.rightElbow ?? m.leftElbow) : (m.leftElbow ?? m.rightElbow), 100, 162, 30, 'elbow');
+  score1(m.shoulderTilt, 0, 7, 20, 'shoulderTilt');
+  score1(m.trunkLean,    0, 11, 20, 'trunkLean');
   return max > 0 ? Math.round(pts / max * 100) : null;
 }
 
 function toggleStrokeByStroke() {
   app.strokeByStrokeMode = document.getElementById('sbs-toggle').checked;
+  saveUserSetting('strokeByStrokeMode', app.strokeByStrokeMode);
 }
 
 function nextStroke() {
@@ -2713,13 +2700,16 @@ function feedbackCardsHtml(cards, isMobLayout) {
   return html;
 }
 
+// Ranges below match generateFeedback()'s "good" tier exactly (serve knee's
+// looser range is applied separately in jointAngleTableHtml()), so the table
+// never disagrees with the feedback cards about the same stroke.
 const JOINT_ANGLE_METRIC_DEFS = [
-  { key:'leftElbow',    label:'Left Elbow',    good:[80,155],  plausKey:'elbow'        },
-  { key:'rightElbow',   label:'Right Elbow',   good:[80,155],  plausKey:'elbow'        },
-  { key:'leftKnee',     label:'Left Knee',     good:[115,165], plausKey:'knee'         },
-  { key:'rightKnee',    label:'Right Knee',    good:[115,165], plausKey:'knee'         },
-  { key:'shoulderTilt', label:'Shoulder Tilt', good:[0,12],    plausKey:'shoulderTilt' },
-  { key:'trunkLean',    label:'Trunk Lean',    good:[0,14],    plausKey:'trunkLean'    },
+  { key:'leftElbow',    label:'Left Elbow',    good:[100,162], plausKey:'elbow'        },
+  { key:'rightElbow',   label:'Right Elbow',   good:[100,162], plausKey:'elbow'        },
+  { key:'leftKnee',     label:'Left Knee',     good:[115,152], plausKey:'knee'         },
+  { key:'rightKnee',    label:'Right Knee',    good:[115,152], plausKey:'knee'         },
+  { key:'shoulderTilt', label:'Shoulder Tilt', good:[0,7],     plausKey:'shoulderTilt' },
+  { key:'trunkLean',    label:'Trunk Lean',    good:[0,11],    plausKey:'trunkLean'    },
 ];
 
 // Collapsible joint-angle table, shared between the frozen post-stroke feedback
@@ -2736,19 +2726,21 @@ function jointAngleTableHtml(m, isMobLayout, type) {
       continue;
     }
     const val  = Math.round(m[def.key]);
+    const isOutlier  = !plausible(val, def.plausKey);
+    if (isOutlier) {
+      // Physically implausible — almost certainly a detection error. Don't show
+      // a number at all; showing one (even flagged) invites reading it as data.
+      html += `<div class="m-row"><span class="m-name">${def.label}</span><span class="m-val m-dim" title="Value outside normal physical range — likely a detection error">possibly inaccurate</span></div>`;
+      continue;
+    }
     // Serves get the same looser knee range used in generateFeedback()/scoreStroke()
     // (legs naturally straighten through the leg drive at contact) so the color
     // coding here doesn't flag correct serve technique as "needs improvement".
     const isKnee = def.key === 'leftKnee' || def.key === 'rightKnee';
     const good = (isServe && isKnee) ? [100, 178] : def.good;
-    const isOutlier  = !plausible(val, def.plausKey);
-    const cls        = isOutlier ? 'm-warn'
-                     : val >= good[0] && val <= good[1] ? 'm-good'
-                     : (val < good[0]*0.8 || val > good[1]*1.12) ? 'm-bad' : 'm-warn';
-    const flag       = isOutlier
-      ? `<span style="font-size:10px;color:#8b949e;margin-left:5px" title="Value outside normal physical range — may be a detection error">⚠ possibly inaccurate</span>`
-      : '';
-    html += `<div class="m-row"><span class="m-name">${def.label}</span><span class="m-val ${cls}">${val}°${flag}</span></div>`;
+    const cls  = val >= good[0] && val <= good[1] ? 'm-good'
+               : (val < good[0]*0.8 || val > good[1]*1.12) ? 'm-bad' : 'm-warn';
+    html += `<div class="m-row"><span class="m-name">${def.label}</span><span class="m-val ${cls}">${val}°</span></div>`;
   }
   html += `</div></details></div>`;
   return html;
@@ -2770,7 +2762,8 @@ function renderRecFeedback(lms) {
     return;
   }
 
-  const m = computeMetrics(lms);
+  const recPreview = document.getElementById('rec-preview');
+  const m = computeMetrics(lms, recPreview.videoWidth / recPreview.videoHeight);
   const bodyVis = m.bodyVisibility ?? 0;
   if (bodyVis < 0.45) {
     const noDetection = bodyVis < 0.15;

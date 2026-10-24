@@ -363,7 +363,7 @@ function processScanStroke(lms) {
       }
       if (scan.active) {
         if (isAnatomicallyImpossible(lms)) scan.poseUnreliable = true;
-        const m = computeMetrics(lms);
+        const m = computeMetrics(lms, scanEl.videoWidth / scanEl.videoHeight);
         // Store wrist trajectory data for stroke type classification
         const aw = (rW?.visibility ?? 0) >= (lW?.visibility ?? 0) ? rW : lW;
         m._wx = aw?.x ?? 0.5; m._wy = aw?.y ?? 0.5;

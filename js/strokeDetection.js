@@ -182,7 +182,12 @@ function processStroke(lms) {
 
       if (stroke.active) {
         if (isAnatomicallyImpossible(lms)) stroke.poseUnreliable = true;
-        const m = computeMetrics(lms);
+        // processStroke() runs for both live playback and recording — landmarks
+        // are normalized against whichever source frame the pose model actually
+        // saw, so the aspect ratio must match that source, not always videoEl.
+        const srcW = app.recRecording ? document.getElementById('rec-preview').videoWidth  : videoEl.videoWidth;
+        const srcH = app.recRecording ? document.getElementById('rec-preview').videoHeight : videoEl.videoHeight;
+        const m = computeMetrics(lms, srcW / srcH);
         // Augment with wrist trajectory data for stroke type classification
         const aw = (rW?.visibility ?? 0) >= (lW?.visibility ?? 0) ? rW : lW;
         m._wx = aw?.x ?? 0.5; m._wy = aw?.y ?? 0.5;
