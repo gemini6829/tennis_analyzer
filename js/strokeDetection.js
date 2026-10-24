@@ -94,6 +94,98 @@ function renderStrokeMarkers() {
   });
 }
 
+// ════════════════════════════════════════════════════════════
+//  STROKE TYPE CLASSIFICATION
+//  isScan=true  → buffer sampled at 0.2 s intervals (sparse)
+//  isScan=false → buffer sampled at ~30 fps (dense)
+// ════════════════════════════════════════════════════════════
+function classifyStrokeType(buffer, isScan = false) {
+  const frames = buffer.filter(f => f._wx !== undefined);
+  if (frames.length < 2) return null;
+
+  const xs = frames.map(f => f._wx);
+  const ys = frames.map(f => f._wy);
+  const mid = frames[Math.floor(frames.length / 2)];
+
+  const shoulderY = mid._shoulderY ?? 0.35;
+
+  const xRange  = Math.max(...xs) - Math.min(...xs);
+  const yRange  = Math.max(...ys) - Math.min(...ys);
+  const yTravel = ys[ys.length - 1] - ys[0];
+
+  // ── Forehand vs Backhand ──────────────────────────────────────────────────
+  const isRightHanded  = playerHandedness !== 'left';
+  const avgLsX         = frames.reduce((s, f) => s + (f._lsX ?? 0.4), 0) / frames.length;
+  const avgRsX         = frames.reduce((s, f) => s + (f._rsX ?? 0.6), 0) / frames.length;
+  const shoulderMidX   = (avgLsX + avgRsX) / 2;
+  const domSign        = Math.sign(isRightHanded ? (avgRsX - avgLsX) : (avgLsX - avgRsX)) || 1;
+
+  const signedDisps = frames.map(f => {
+    const wx = isRightHanded ? (f._rwx ?? 0.5) : (f._lwx ?? 0.5);
+    return (wx - shoulderMidX) * domSign;
+  });
+
+  const maxNonDomExcursion = Math.max(...signedDisps.map(d => -d));
+
+  const wristSaysBackhand = maxNonDomExcursion >= 0.10;
+
+  let elbowSaysBackhand = null;
+  {
+    const domElbowKey = isRightHanded ? '_rex' : '_lex';
+    const midFrame = frames.reduce((best, f) => {
+      const d = Math.abs((isRightHanded ? (f._rwx ?? 0.5) : (f._lwx ?? 0.5)) - shoulderMidX);
+      return (!best || d < Math.abs((isRightHanded ? (best._rwx ?? 0.5) : (best._lwx ?? 0.5)) - shoulderMidX)) ? f : best;
+    }, null);
+    if (midFrame) {
+      // _rex/_lex are the dominant elbow x in normalised coords (stored in computeMetrics via _rightDom)
+      const elbowX = isRightHanded
+        ? (midFrame[domElbowKey] ?? midFrame._lsX ?? null)
+        : (midFrame[domElbowKey] ?? midFrame._rsX ?? null);
+      const wristX = isRightHanded ? (midFrame._rwx ?? null) : (midFrame._lwx ?? null);
+      if (elbowX !== null && wristX !== null) {
+        const wristPastElbow = (wristX - elbowX) * domSign;
+        elbowSaysBackhand = wristPastElbow < -0.03;
+      }
+    }
+  }
+
+  const isForehand = !wristSaysBackhand && (elbowSaysBackhand !== true);
+  const side = isForehand ? 'Forehand' : 'Backhand';
+
+  // ── 1. SERVE / OVERHEAD ───────────────────────────────────────────────────
+  const minRwY    = Math.min(...frames.map(f => f._rwy ?? 1));
+  const minLwY    = Math.min(...frames.map(f => f._lwy ?? 1));
+  const minWristY = Math.min(minRwY, minLwY);
+  if (minWristY < shoulderY - 0.08)
+    return { type: 'Serve / Overhead', icon: '' };
+
+  // ── 2. VOLLEY ─────────────────────────────────────────────────────────────
+  if (!isScan && xRange < 0.11 && yRange < 0.10 && frames.length <= 10)
+    return { type: `${side} Volley`, icon: '' };
+
+  // ── 3. SLICE ──────────────────────────────────────────────────────────────
+  if (yTravel > 0.09 && xRange > 0.04)
+    return { type: `${side} Slice`, icon: '↘' };
+
+  // ── 4. GROUNDSTROKE ───────────────────────────────────────────────────────
+  return { type: 'Groundstroke', icon: '' };
+}
+
+function avgMetrics(buffer) {
+  const sums = {}, counts = {};
+  for (const m of buffer) {
+    for (const [k, v] of Object.entries(m)) {
+      if (typeof v === 'number') {
+        sums[k]   = (sums[k]   || 0) + v;
+        counts[k] = (counts[k] || 0) + 1;
+      }
+    }
+  }
+  const result = {};
+  for (const k of Object.keys(sums)) result[k] = sums[k] / counts[k];
+  return result;
+}
+
 function processStroke(lms) {
   const rW = lms[LM.R_WRIST], lW = lms[LM.L_WRIST];
   const wrist = (rW?.visibility ?? 0) >= (lW?.visibility ?? 0) ? rW : lW;
