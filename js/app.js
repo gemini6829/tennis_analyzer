@@ -742,50 +742,24 @@ function classifyStrokeType(buffer, isScan = false) {
   const yTravel = ys[ys.length - 1] - ys[0];
 
   // ── Forehand vs Backhand ──────────────────────────────────────────────────
-  // Strategy: find the maximum horizontal excursion of the dominant wrist
-  // toward the NON-DOMINANT side across all frames. If it exceeds a threshold
-  // the stroke is a backhand — the arm had to cross the body to reach there.
-  //
-  // Why this beats the setup-position approach:
-  //   A closed-stance backhand starts its prep on the DOMINANT side (looks like
-  //   a forehand setup), then swings through and crosses to the non-dominant
-  //   side at contact. Checking where the wrist reaches its furthest
-  //   non-dominant excursion catches that crossing regardless of what the setup
-  //   position looked like.
-  //
-  // Camera-angle handling via dominantDir:
-  //   If the right shoulder appears to the right of the left shoulder in the
-  //   frame (camera in front), dominantDir = +1. If behind, dominantDir = -1.
-  //   All signed displacements are multiplied by dominantDir so "toward the
-  //   dominant side" is always positive regardless of camera angle.
   const isRightHanded  = playerHandedness !== 'left';
   const avgLsX         = frames.reduce((s, f) => s + (f._lsX ?? 0.4), 0) / frames.length;
   const avgRsX         = frames.reduce((s, f) => s + (f._rsX ?? 0.6), 0) / frames.length;
   const shoulderMidX   = (avgLsX + avgRsX) / 2;
-  // domSign: +1 if dominant shoulder is in the positive-X direction of the frame
   const domSign        = Math.sign(isRightHanded ? (avgRsX - avgLsX) : (avgLsX - avgRsX)) || 1;
 
-  // For each frame, compute signed displacement: positive = toward dominant side
   const signedDisps = frames.map(f => {
     const wx = isRightHanded ? (f._rwx ?? 0.5) : (f._lwx ?? 0.5);
     return (wx - shoulderMidX) * domSign;
   });
 
-  // Maximum excursion toward the NON-dominant side (negative signed disp → flip sign)
   const maxNonDomExcursion = Math.max(...signedDisps.map(d => -d));
 
-  // Primary signal: wrist crossed to the non-dominant side.
-  // Forehands may drift slightly non-dominant in the follow-through, so threshold is 0.10.
   const wristSaysBackhand = maxNonDomExcursion >= 0.10;
 
-  // Secondary signal: elbow-to-wrist vector direction relative to body midline.
-  // On a forehand the dominant elbow leads and the forearm points away from the body;
-  // on a backhand the elbow tucks across the torso. We look at the mid-swing frame
-  // where the wrist is closest to the body midline (transition point).
   let elbowSaysBackhand = null;
   {
-    const domElbowKey = isRightHanded ? '_rex' : '_lex'; // stored below if available
-    // Use the frame closest to body midline as the "contact zone" frame
+    const domElbowKey = isRightHanded ? '_rex' : '_lex';
     const midFrame = frames.reduce((best, f) => {
       const d = Math.abs((isRightHanded ? (f._rwx ?? 0.5) : (f._lwx ?? 0.5)) - shoulderMidX);
       return (!best || d < Math.abs((isRightHanded ? (best._rwx ?? 0.5) : (best._lwx ?? 0.5)) - shoulderMidX)) ? f : best;
@@ -797,22 +771,16 @@ function classifyStrokeType(buffer, isScan = false) {
         : (midFrame[domElbowKey] ?? midFrame._rsX ?? null);
       const wristX = isRightHanded ? (midFrame._rwx ?? null) : (midFrame._lwx ?? null);
       if (elbowX !== null && wristX !== null) {
-        // If wrist is on the non-dominant side of the elbow at the contact zone → backhand
         const wristPastElbow = (wristX - elbowX) * domSign;
         elbowSaysBackhand = wristPastElbow < -0.03;
       }
     }
   }
 
-  // Combine: if either signal says backhand, classify as backhand.
-  // (One signal can be unreliable on unusual camera angles; OR-ing reduces misses.)
   const isForehand = !wristSaysBackhand && (elbowSaysBackhand !== true);
   const side = isForehand ? 'Forehand' : 'Backhand';
 
-  // ── 1. SERVE / OVERHEAD — checked first ──────────────────────────────────
-  // Check the minimum Y of BOTH wrists across all frames. At contact MediaPipe
-  // sometimes tracks the non-hitting arm as more visible, so using only the
-  // dominant wrist can miss the above-shoulder position entirely.
+  // ── 1. SERVE / OVERHEAD ───────────────────────────────────────────────────
   const minRwY    = Math.min(...frames.map(f => f._rwy ?? 1));
   const minLwY    = Math.min(...frames.map(f => f._lwy ?? 1));
   const minWristY = Math.min(minRwY, minLwY);
@@ -820,11 +788,6 @@ function classifyStrokeType(buffer, isScan = false) {
     return { type: 'Serve / Overhead', icon: '' };
 
   // ── 2. VOLLEY ─────────────────────────────────────────────────────────────
-  // Volleys are only classified during live playback (~30 fps). At scan
-  // resolution (0.2 s/frame) a stroke always ends after 2–3 frames regardless
-  // of shot type, so compact range is indistinguishable from a groundstroke —
-  // every stroke would be called a volley. Live detection has enough frames to
-  // distinguish a genuinely brief, compact swing from a full groundstroke.
   if (!isScan && xRange < 0.11 && yRange < 0.10 && frames.length <= 10)
     return { type: `${side} Volley`, icon: '' };
 
@@ -833,9 +796,6 @@ function classifyStrokeType(buffer, isScan = false) {
     return { type: `${side} Slice`, icon: '↘' };
 
   // ── 4. GROUNDSTROKE ───────────────────────────────────────────────────────
-  // Forehand vs backhand is still detected above (isForehand/side) since Slice
-  // and Volley keep that qualifier, but a plain groundstroke is reported as a
-  // single unified category rather than split by which side it was hit on.
   return { type: 'Groundstroke', icon: '' };
 }
 
@@ -1092,7 +1052,6 @@ function settingsToggleVoiceFeedback(on) {
   app.voiceFeedbackEnabled = on;
   if (!on) {
     if (window.speechSynthesis) speechSynthesis.cancel();
-    document.getElementById('rec-voice-badge')?.classList.remove('visible');
   }
   saveUserSetting('voiceFeedbackEnabled', on);
 }
@@ -2217,7 +2176,7 @@ function drawRecOverlay(rctx, rc) {
     const goodMax   = isElbow ? 155 : 165;
     const plausKey  = isElbow ? 'elbow' : 'knee';
     // Physically implausible — almost certainly a detection error. Don't draw
-    // a number for it at all, rather than showing one just in a muted color.
+    // a number for it at all.
     if (!plausible(ang, plausKey)) return;
     let color;
     if (ang >= goodMin && ang <= goodMax) {
@@ -2349,10 +2308,6 @@ function generateFeedback(m, type) {
   const cards = [];
   const isServe = type?.type === 'Serve / Overhead';
 
-  // Knee bend — serves get a looser "too straight" threshold than groundstrokes:
-  // the leg drive naturally extends the knees toward straight through contact,
-  // so the groundstroke thresholds (tuned for a bent, athletic ready-position)
-  // would otherwise flag normal, correct serve technique as a problem.
   const knees = [m.leftKnee, m.rightKnee].filter(v => v !== undefined);
   if (knees.length) {
     const avg = knees.reduce((a,b)=>a+b,0)/knees.length;
@@ -2375,8 +2330,6 @@ function generateFeedback(m, type) {
       cards.push({type:'info', cat:'Stance', short:'Very deep knee bend', text:'Very deep knee bend — make sure you can still transfer weight and move laterally.'});
   }
 
-  // Elbow — prefer the dominant (hitting) arm's elbow, matching playerHandedness,
-  // falling back to the other arm only when the dominant one isn't visible.
   const isRightHanded = playerHandedness !== 'left';
   const elbow = isRightHanded ? (m.rightElbow ?? m.leftElbow) : (m.leftElbow ?? m.rightElbow);
   if (elbow !== undefined && plausible(elbow, 'elbow')) {
@@ -2423,11 +2376,6 @@ function generateFeedback(m, type) {
   return cards;
 }
 
-// Debug badge for the voice-feedback feature — shows what's happening at each
-// stage (fired / actually started playing / errored) so "not hearing it" can be
-// narrowed down to "never triggered" vs "browser silently failed to speak" vs
-// "device is muted / silent switch on" (the last of which the browser can't
-// report — SpeechSynthesis has no volume/mute-state API).
 // iOS Safari only allows SpeechSynthesis to actually produce audio if the first
 // speak() call in the page session happens synchronously inside a real user-gesture
 // handler (a tap). speakStrokeFeedback() is triggered asynchronously from a pose-
@@ -2438,11 +2386,9 @@ function generateFeedback(m, type) {
 function _primeVoiceSynthesis() {
   if (!window.speechSynthesis) return;
   // Separately from the gesture-unlock issue: iOS can also silently no-op speak()
-  // calls made before its voice list has finished loading (getVoices() starts
-  // empty until 'voiceschanged' fires once). Nudge it to load early too.
-  if (speechSynthesis.getVoices().length === 0) {
-    speechSynthesis.addEventListener('voiceschanged', () => {}, { once: true });
-  }
+  // calls made before its voice list has finished loading. Call getVoices() now
+  // to nudge that loading to start early, well before the first real utterance.
+  speechSynthesis.getVoices();
   try {
     const primer = new SpeechSynthesisUtterance(' ');
     primer.volume = 0.01;
@@ -2450,42 +2396,14 @@ function _primeVoiceSynthesis() {
   } catch (e) {}
 }
 
-let _voiceBadgeTimeout = null;
-function _setVoiceBadge(text, isError) {
-  const el = document.getElementById('rec-voice-badge');
-  if (!el) return;
-  clearTimeout(_voiceBadgeTimeout);
-  el.textContent = text;
-  el.classList.toggle('error', !!isError);
-  el.classList.add('visible');
-  _voiceBadgeTimeout = setTimeout(() => el.classList.remove('visible'), 4000);
-}
-
 // Speaks the single most useful coaching tip for a just-completed stroke, while
 // recording. Only one short line per stroke — reading out every card would talk
 // over the player's next swing.
-//
-// Picking "most useful" used to just take the first 'warn' card in the array,
-// which in practice always meant knee bend (Stance is generated first in
-// generateFeedback() and ties always kept the earlier card) — every other
-// landmark got silently drowned out. Now it ranks by actual severity: each
-// warn card carries a `sev` number (how far past the threshold that made it a
-// warning in the first place, normalized to that threshold — see
-// generateFeedback()), so e.g. a badly-straight elbow can outrank a mildly-bent
-// knee instead of losing to it by array position. Landmarks flagged as possibly
-// inaccurate never produce a card at all (generateFeedback()'s plausible()
-// checks skip them), so they can never be picked here either.
 const VOICE_FEEDBACK_PRIORITY = { warn: 0, tip: 1, info: 2, good: 3 };
 function speakStrokeFeedback(m, type) {
-  if (!window.speechSynthesis) {
-    _setVoiceBadge('Speech synthesis not supported in this browser', true);
-    return;
-  }
+  if (!window.speechSynthesis) return;
   const cards = generateFeedback(m, type);
-  if (!cards.length) {
-    _setVoiceBadge('No tip generated for this stroke (nothing to say)', false);
-    return;
-  }
+  if (!cards.length) return;
   const warnCards = cards.filter(c => c.type === 'warn');
   const best = warnCards.length
     ? warnCards.reduce((a, b) => (b.sev ?? 0) > (a.sev ?? 0) ? b : a)
@@ -2503,18 +2421,20 @@ function speakStrokeFeedback(m, type) {
   if (voices.length) {
     utter.voice = voices.find(v => v.lang?.startsWith('en')) || voices[0];
   }
-  _setVoiceBadge('Requested: “' + text + '”', false);
-  utter.onstart = () => _setVoiceBadge('Speaking: “' + text + '”', false);
-  utter.onerror = (e) => _setVoiceBadge('Voice error (' + e.error + '): “' + text + '”', true);
-  utter.onend   = () => _setVoiceBadge('✓ Finished: “' + text + '”', false);
+  utter.onerror = (e) => {
+    // 'canceled'/'interrupted' fire every time a later speakStrokeFeedback() call
+    // cancels this same still-playing utterance to speak the next stroke's line
+    // (see the cancel() above) — that's expected, intentional behavior, not a
+    // real failure. Only genuine synthesis failures are worth logging.
+    if (e.error === 'canceled' || e.error === 'interrupted') return;
+    console.warn('[TA] Speech synthesis error:', e.error);
+  };
   speechSynthesis.speak(utter);
 }
 
 function scoreStroke(m, type) {
   const isServe = type?.type === 'Serve / Overhead';
   let pts = 0, max = 0;
-  // Outlier values (outside physical plausibility bounds) get 10% weight —
-  // they barely affect the total rather than unfairly tanking the score.
   const score1 = (val, min, max_val, weight, plausKey) => {
     if (val === undefined) return;
     const w = plausible(val, plausKey) ? weight : weight * 0.1;
@@ -2524,15 +2444,8 @@ function scoreStroke(m, type) {
     else pts += w * 0.12;
   };
   const knees = [m.leftKnee, m.rightKnee].filter(v=>v!==undefined);
-  // Ranges below match generateFeedback()'s "good" tier exactly, so the score
-  // and the feedback cards never disagree about the same stroke.
-  // Serves score against the same looser knee range used in generateFeedback()
-  // (legs naturally straighten through the leg drive at contact) instead of the
-  // groundstroke range, so a technically correct serve doesn't get penalized.
   const [kneeMin, kneeMax] = isServe ? [100, 178] : [115, 152];
   if (knees.length) score1(knees.reduce((a,b)=>a+b,0)/knees.length, kneeMin, kneeMax, 30, 'knee');
-  // Prefer the dominant (hitting) arm's elbow, matching playerHandedness —
-  // see the matching comment in generateFeedback().
   const isRightHandedScore = playerHandedness !== 'left';
   score1(isRightHandedScore ? (m.rightElbow ?? m.leftElbow) : (m.leftElbow ?? m.rightElbow), 100, 162, 30, 'elbow');
   score1(m.shoulderTilt, 0, 7, 20, 'shoulderTilt');
@@ -2624,10 +2537,12 @@ function hideBadPoseBar() {
 
 function skipToVisibleStroke() {
   const currentVT = videoEl.currentTime;
-  // Find the next marker after the current position with acceptable body visibility
+  // Find the next marker after the current position with CONFIRMED acceptable
+  // body visibility — a marker with no computed metrics at all means visibility
+  // was never measured, not that it's good, so it must not pass this check.
   const nextGood = stroke.markers.find(m =>
     m.startTime > currentVT &&
-    (m.metrics?.bodyVisibility ?? 1) >= 0.45
+    (m.metrics?.bodyVisibility ?? 0) >= 0.45
   );
   if (nextGood) {
     // Seek to 0.5 s before the stroke so the auto-pause fires naturally
@@ -2639,7 +2554,6 @@ function skipToVisibleStroke() {
 let _undoMarker = null; // { marker, index } — single-level undo for "Not a stroke"
 
 function notAStroke() {
-  _undoMarker = null;
   if (stroke.lastDetectedStartVT !== null && stroke.markers.length) {
     let bestIdx = -1, bestDist = Infinity;
     stroke.markers.forEach((m, i) => {
@@ -2647,11 +2561,14 @@ function notAStroke() {
       if (d < bestDist) { bestDist = d; bestIdx = i; }
     });
     if (bestIdx >= 0 && bestDist < 2.0) {
+      // Only clear/replace the previous undo slot once a new deletion actually
+      // happens — a no-op call (nothing matched) shouldn't destroy a still-valid
+      // pending undo from an earlier call.
       _undoMarker = { marker: { ...stroke.markers[bestIdx] }, index: bestIdx };
       stroke.deletedTimes.push(_undoMarker.marker.startTime);
       stroke.markers.splice(bestIdx, 1);
       renderStrokeMarkers();
-      saveScanResults();
+      saveScanResults(true); // force: this is a deliberate user edit, not a scan result
       document.getElementById('undo-bar').classList.add('visible');
     }
   }
@@ -2667,7 +2584,7 @@ function undoDeleteStroke() {
   stroke.markers.sort((a, b) => a.startTime - b.startTime);
   _undoMarker = null;
   renderStrokeMarkers();
-  saveScanResults();
+  saveScanResults(true); // force: this is a deliberate user edit, not a scan result
   document.getElementById('undo-bar').classList.remove('visible');
   setFeedbackWaiting('Stroke restored.');
 }
@@ -2675,6 +2592,32 @@ function undoDeleteStroke() {
 function hideUndoBar() {
   _undoMarker = null;
   document.getElementById('undo-bar').classList.remove('visible');
+}
+
+// Collapsible <details> elements get replaced wholesale on every re-render
+// (new stroke, new frame), which would otherwise reset any section the user
+// manually expanded back to its hard-coded default each time. Track which
+// ones the user has explicitly opened/closed so re-renders can restore that
+// choice instead of clobbering it. Keyed by a stable identity, not DOM
+// identity, since the actual elements are recreated on every render.
+let _metricsTableExpanded = null; // null = no explicit user choice yet — use the default
+const _expandedFeedbackCardKeys = new Set();
+
+// After injecting HTML containing .metrics-details/.fb-card-detail elements,
+// call this so toggling them updates the trackers above for the next render.
+function _wireDetailsPersistence(container) {
+  const metricsDetails = container.querySelector('.metrics-details');
+  if (metricsDetails) {
+    metricsDetails.addEventListener('toggle', () => { _metricsTableExpanded = metricsDetails.open; });
+  }
+  container.querySelectorAll('.fb-card-detail').forEach(el => {
+    const key = el.dataset.cardKey;
+    if (!key) return;
+    el.addEventListener('toggle', () => {
+      if (el.open) _expandedFeedbackCardKeys.add(key);
+      else _expandedFeedbackCardKeys.delete(key);
+    });
+  });
 }
 
 // Renders coaching cards, shared between the frozen post-stroke feedback panel
@@ -2686,8 +2629,15 @@ function feedbackCardsHtml(cards, isMobLayout) {
     const tag = c.type === 'good' ? '✓ Great' : c.type === 'warn' ? '⚠ Improve' : c.type === 'tip' ? 'Tip' : 'ℹ Info';
     if (isMobLayout) {
       const tagWord = c.type === 'good' ? 'Great' : c.type === 'warn' ? 'Improve' : c.type === 'tip' ? 'Tip' : 'Info';
+      // Same category + headline recurs across different strokes with the same
+      // issue — use it as a stable identity so "user expanded this" survives
+      // the <details> element itself being recreated on the next render.
+      // Keep the Set keyed on the raw (unescaped) string — el.dataset reads
+      // back the HTML-decoded attribute value, so the two must match exactly.
+      const cardKeyRaw = c.cat + '|' + c.type + '|' + (c.short || c.text);
+      const cardOpen = _expandedFeedbackCardKeys.has(cardKeyRaw) ? ' open' : '';
       html += `<div class="fb-card ${c.type}">
-        <details class="fb-card-detail">
+        <details class="fb-card-detail" data-card-key="${escHtml(cardKeyRaw)}"${cardOpen}>
           <summary class="fb-card-summary"><span class="fb-tag">${c.cat} — ${tagWord}</span> ${c.short || c.text}</summary>
           <div class="fb-text">${c.text}</div>
         </details>
@@ -2700,9 +2650,6 @@ function feedbackCardsHtml(cards, isMobLayout) {
   return html;
 }
 
-// Ranges below match generateFeedback()'s "good" tier exactly (serve knee's
-// looser range is applied separately in jointAngleTableHtml()), so the table
-// never disagrees with the feedback cards about the same stroke.
 const JOINT_ANGLE_METRIC_DEFS = [
   { key:'leftElbow',    label:'Left Elbow',    good:[100,162], plausKey:'elbow'        },
   { key:'rightElbow',   label:'Right Elbow',   good:[100,162], plausKey:'elbow'        },
@@ -2716,7 +2663,10 @@ const JOINT_ANGLE_METRIC_DEFS = [
 // panel and the live per-frame feedback panel shown while recording.
 function jointAngleTableHtml(m, isMobLayout, type) {
   const isServe = type?.type === 'Serve / Overhead';
-  const openAttr = isMobLayout ? '' : ' open';
+  // Default: open on desktop, closed on mobile — but once the user has
+  // explicitly toggled it, honor their choice instead on every later render.
+  const defaultOpen = !isMobLayout;
+  const openAttr = (_metricsTableExpanded ?? defaultOpen) ? ' open' : '';
   let html = `<div class="fb-section"><details class="metrics-details"${openAttr}>
     <summary class="fb-lbl metrics-summary">Joint Angles</summary>
     <div class="metrics-tbl" style="margin-top:6px">`;
@@ -2733,9 +2683,6 @@ function jointAngleTableHtml(m, isMobLayout, type) {
       html += `<div class="m-row"><span class="m-name">${def.label}</span><span class="m-val m-dim" title="Value outside normal physical range — likely a detection error">possibly inaccurate</span></div>`;
       continue;
     }
-    // Serves get the same looser knee range used in generateFeedback()/scoreStroke()
-    // (legs naturally straighten through the leg drive at contact) so the color
-    // coding here doesn't flag correct serve technique as "needs improvement".
     const isKnee = def.key === 'leftKnee' || def.key === 'rightKnee';
     const good = (isServe && isKnee) ? [100, 178] : def.good;
     const cls  = val >= good[0] && val <= good[1] ? 'm-good'
@@ -2793,6 +2740,7 @@ function renderRecFeedback(lms) {
   html += jointAngleTableHtml(m, isMobLayout);
 
   scroll.innerHTML = html;
+  _wireDetailsPersistence(scroll);
 }
 
 function showMarkerFeedback(marker, idx) {
@@ -2850,9 +2798,13 @@ function renderFrozenFeedback() {
   const t = stroke.frozenResult.type;
   const typeLabel = t ? (t.icon ? `${t.icon} ${t.type}` : t.type) : 'Stroke';
 
-  // Score
+  // Score — explicit numeric check, not just "!== null": a marker with a
+  // missing/corrupted score field (e.g. old cached data predating this field)
+  // would otherwise pass "undefined !== null" and render the literal text
+  // "undefined" in the score badge.
+  const hasScore = typeof score === 'number' && !isNaN(score);
   let sc, bc, desc;
-  if (score !== null) {
+  if (hasScore) {
     sc   = score >= 70 ? 'good' : score >= 45 ? 'ok' : 'bad';
     bc   = score >= 70 ? '#3fb950' : score >= 45 ? '#d29922' : '#f85149';
     desc = score >= 80 ? 'Excellent' : score >= 65 ? 'Good' : score >= 50 ? 'Fair' : 'Needs work';
@@ -2863,18 +2815,18 @@ function renderFrozenFeedback() {
     // the score no longer eats the full panel width on phones.
     html += `<div class="fb-top-row">
       <div class="fb-stroke-label"><div class="dot"></div> ${typeLabel}</div>
-      ${score !== null ? `<div class="score-badge score-badge-mini">
+      ${hasScore ? `<div class="score-badge score-badge-mini">
         <div class="score-val ${sc}">${score}</div>
       </div>` : ''}
     </div>`;
-    if (score !== null && poseUnreliable) {
+    if (hasScore && poseUnreliable) {
       html += `<div style="margin:-4px 0 12px;font-size:11px;color:#8b949e;display:flex;align-items:center;gap:5px"><span style="color:#d29922">⚠</span> Body landmarks were unreliable during this stroke — score may be inaccurate</div>`;
     }
   } else {
     html += `<div style="margin-bottom:10px">
       <div class="fb-stroke-label"><div class="dot"></div> ${typeLabel}</div>
     </div>`;
-    if (score !== null) {
+    if (hasScore) {
       html += `<div class="fb-section"><div class="fb-lbl">Stroke Score</div>
         <div class="score-badge">
           <div><div class="score-lbl">Overall</div><div class="score-val ${sc}">${score}</div></div>
@@ -2907,6 +2859,10 @@ function renderFrozenFeedback() {
       ${app.strokeByStrokeMode ? `<button class="sbs-next" onclick="nextStroke()">▶ Next stroke</button>` : ''}
       <button class="sbs-reject" onclick="notAStroke()">✕ Not a stroke</button>
     </div>`;
+  // Must run after the LAST innerHTML write above — the += just before this
+  // reparses the whole container, which would otherwise discard listeners
+  // attached to the metrics-details/fb-card-detail elements written earlier.
+  _wireDetailsPersistence(scroll);
 }
 
 function setFeedbackWaiting(msg) {
@@ -2923,7 +2879,9 @@ function updateScrub() {
   const dur = videoEl.duration;
   if (!dur && dur !== 0) return; // undefined / NaN — metadata not loaded yet
   const ct  = videoEl.currentTime;
-  const finite = isFinite(dur);
+  // dur === 0 passes isFinite() but dividing by it below would give NaN (0/0)
+  // or Infinity — treat a zero-length video the same as an unknown duration.
+  const finite = isFinite(dur) && dur > 0;
   const pct = finite ? Math.min(100, (ct / dur) * 100) : 0;
   document.getElementById('scrub-fill').style.width = pct + '%';
   document.getElementById('scrub-thumb').style.left  = pct + '%';
@@ -2958,7 +2916,16 @@ document.addEventListener('keydown', e => {
   if (e.target.tagName === 'INPUT') return;
   if (e.code === 'Space')      { e.preventDefault(); videoEl.paused ? videoEl.play() : videoEl.pause(); }
   if (e.code === 'ArrowLeft')  { e.preventDefault(); videoEl.currentTime = Math.max(0, videoEl.currentTime - (e.shiftKey ? 10 : 5)); }
-  if (e.code === 'ArrowRight') { e.preventDefault(); videoEl.currentTime = Math.min(videoEl.duration, videoEl.currentTime + (e.shiftKey ? 10 : 5)); }
+  if (e.code === 'ArrowRight') {
+    e.preventDefault();
+    // Unlike the ff buttons, this used Math.min(videoEl.duration, ...) directly —
+    // if duration is NaN (metadata not loaded yet), Math.min(NaN, x) is NaN,
+    // setting currentTime to NaN and breaking seeking entirely.
+    const step = e.shiftKey ? 10 : 5;
+    videoEl.currentTime = isFinite(videoEl.duration)
+      ? Math.min(videoEl.duration, videoEl.currentTime + step)
+      : videoEl.currentTime + step;
+  }
 });
 
 // ════════════════════════════════════════════════════════════
@@ -2987,10 +2954,13 @@ document.addEventListener('drop', e => {
   let _stream = null, _mr = null, _chunks = [], _timerInt = null, _secs = 0;
   let _recStartMs = 0, _recEndMs = 0;  // performance.now() timestamps for exact duration
   let _facing = 'environment';
+  // Bumped by _stopPreview() — invalidates any in-flight _startPreview() call
+  // (e.g. one still awaiting the camera permission prompt when the modal is
+  // closed), so a late-resolving getUserMedia() gets stopped instead of
+  // silently starting the camera after the UI has already gone away.
+  let _previewGen = 0;
   let _zoom = 1, _zoomMin = 1, _zoomMax = 5, _hwZoom = false;
   let _pinchDist0 = null, _zoom0 = 1;
-
-  function _fmt(s) { return Math.floor(s/60) + ':' + String(s%60).padStart(2,'0'); }
 
   function _setErr(msg) {
     const el = document.getElementById('rec-error');
@@ -3016,13 +2986,21 @@ document.addEventListener('drop', e => {
         try { await track.applyConstraints({ advanced: [{ zoom: hw }] }); return; } catch(e) {}
       }
     }
-    // CSS scale fallback
-    document.getElementById('rec-preview').style.transform = `scale(${_zoom})`;
+    // CSS scale fallback — hardware zoom (above) zooms the actual captured
+    // frames, so the pose overlay (drawn from landmarks detected on those
+    // frames) naturally stays in sync. This software fallback only scales the
+    // *display*, leaving detection running on unzoomed frames, so the overlay
+    // canvas must get the identical transform or it drifts away from the
+    // now-magnified video underneath it.
+    const scaleCss = `scale(${_zoom})`;
+    document.getElementById('rec-preview').style.transform = scaleCss;
+    document.getElementById('rec-canvas').style.transform  = scaleCss;
   }
 
   function _initZoom() {
     _zoom = 1; _hwZoom = false;
     document.getElementById('rec-preview').style.transform = '';
+    document.getElementById('rec-canvas').style.transform  = '';
     document.getElementById('rec-zoom-label').textContent = '1×';
     if (!_stream) return;
     const track = _stream.getVideoTracks()[0];
@@ -3056,7 +3034,8 @@ document.addEventListener('drop', e => {
 
   async function _startPreview() {
     _stopRecAnalysis();
-    _stopPreview();
+    _stopPreview(); // bumps _previewGen, invalidating any earlier in-flight attempt
+    const myGen = _previewGen;
     _setErr('');
     if (!window.isSecureContext) {
       _setErr('Camera requires HTTPS. Open the app via your Firebase Hosting URL (https://…) or use an ngrok tunnel.');
@@ -3074,18 +3053,31 @@ document.addEventListener('drop', e => {
     ];
     let lastErr = null;
     for (const c of attempts) {
+      let s = null;
       try {
-        _stream = await navigator.mediaDevices.getUserMedia(c);
+        s = await navigator.mediaDevices.getUserMedia(c);
+        // The modal may have been closed (or a newer _startPreview() call
+        // started) while we were awaiting the permission prompt — don't start
+        // the camera into a UI that's no longer there.
+        if (myGen !== _previewGen) { s.getTracks().forEach(t => t.stop()); return; }
         const v = document.getElementById('rec-preview');
-        v.srcObject = _stream;
+        v.srcObject = s;
         await v.play();
+        if (myGen !== _previewGen) { s.getTracks().forEach(t => t.stop()); v.srcObject = null; return; }
+        // Only commit to this stream once the preview has actually started
+        // successfully — a stream obtained here but abandoned below (play()
+        // throwing, or trying a looser constraint set next) must be stopped,
+        // not left running while a different attempt takes over.
+        _stream = s;
         _initZoom();
         return;
       } catch(e) {
+        if (s) s.getTracks().forEach(t => t.stop());
         lastErr = e;
         if (e.name === 'NotAllowedError') break;
       }
     }
+    if (myGen !== _previewGen) return; // closed/superseded while failing through attempts
     const msg = lastErr.name === 'NotAllowedError'
       ? 'Camera access denied. Please allow camera permissions in your browser settings.'
       : lastErr.name === 'NotFoundError' ? 'No camera found on this device.'
@@ -3094,6 +3086,7 @@ document.addEventListener('drop', e => {
   }
 
   function _stopPreview() {
+    _previewGen++; // invalidate any in-flight _startPreview() call
     if (_stream) { _stream.getTracks().forEach(t => t.stop()); _stream = null; }
     document.getElementById('rec-preview').srcObject = null;
   }
@@ -3158,7 +3151,7 @@ document.addEventListener('drop', e => {
 
   window.openRecordModal = function() {
     _primeVoiceSynthesis(); // must happen directly inside this tap handler — see comment above the function
-    _secs = 0; _chunks = [];
+    _secs = 0; _chunks = []; _pendingBlob = null; _pendingExt = null;
     document.getElementById('rec-timer-badge').textContent = '⏺ 0:00';
     _setRecording(false);
     _setErr('');
@@ -3166,6 +3159,9 @@ document.addEventListener('drop', e => {
     renderRecFeedback(null);
     const hint = document.getElementById('rec-rotate-hint');
     if (hint) { hint.dataset.dismissed = ''; }  // reset dismiss on open
+    // Defensive: 'renaming' should already be gone from closeRecordModal(),
+    // but a fresh open should never be able to inherit a leftover take's state.
+    document.getElementById('rec-screen').classList.remove('renaming');
     document.getElementById('rec-screen').classList.add('visible');
     _checkRecOrientation();
     // Listen for both — resize is the more reliable "layout actually changed"
@@ -3186,12 +3182,20 @@ document.addEventListener('drop', e => {
   };
 
   window.closeRecordModal = function() {
-    if (_mr && _mr.state !== 'inactive') _mr.stop();
+    if (_mr && _mr.state !== 'inactive') {
+      // _mr.onstop (_onStop) runs asynchronously after stop() — if left attached,
+      // it would still fire after this function already discarded the pending
+      // blob and hidden the UI, resurrecting _pendingBlob and re-adding the
+      // 'renaming' class so a *cancelled* recording's rename screen could
+      // reappear the next time the modal opens.
+      _mr.onstop = null;
+      _mr.ondataavailable = null;
+      _mr.stop();
+    }
     clearInterval(_timerInt);
     _stopRecAnalysis();
     _stopPreview();
     if (window.speechSynthesis) speechSynthesis.cancel();
-    document.getElementById('rec-voice-badge')?.classList.remove('visible');
     _pendingBlob = null;
     document.getElementById('rec-screen').classList.remove('visible', 'renaming');
     _setRecording(false);
@@ -3224,21 +3228,34 @@ document.addEventListener('drop', e => {
       clearInterval(_timerInt);
       _setRecording(false);
     } else {
-      // Start
+      // Start — reset every property a previous take could have left behind,
+      // not just the obvious ones, so a stale value never leaks into this one.
       if (!_stream) return;
       _chunks = []; _secs = 0;
+      _pendingBlob = null; _pendingExt = null;
       app._recElapsed = 0;
       _recStartMs = performance.now();
       if (window.speechSynthesis) speechSynthesis.cancel(); // clear any leftover line from a previous take
       _primeVoiceSynthesis(); // second unlock attempt, directly inside this tap handler too
-      document.getElementById('rec-voice-badge')?.classList.remove('visible');
       const mimeType = ['video/webm;codecs=vp9','video/webm','video/mp4']
         .find(t => MediaRecorder.isTypeSupported(t)) || '';
       try { _mr = new MediaRecorder(_stream, mimeType ? { mimeType } : {}); }
       catch(e) { _mr = new MediaRecorder(_stream); }
       _mr.ondataavailable = e => { if (e.data?.size > 0) _chunks.push(e.data); };
       _mr.onstop = _onStop;
-      _mr.start(200);
+      _mr.onerror = (e) => {
+        console.warn('[TA] MediaRecorder error:', e.error);
+        _setErr('Recording error (' + (e.error?.name || 'unknown') + '). Please try recording again.');
+        app.recRecording = false;
+        clearInterval(_timerInt);
+        _setRecording(false);
+      };
+      try {
+        _mr.start(200);
+      } catch(e) {
+        _setErr('Could not start recording (' + (e.name || e.message) + ').');
+        return;
+      }
       app.recRecording = true;
       // Reset stroke state for fresh recording session
       resetStrokeDetector();
@@ -3247,7 +3264,7 @@ document.addEventListener('drop', e => {
       document.getElementById('rec-timer-badge').textContent = '⏺ 0:00';
       _timerInt = setInterval(() => {
         _secs++;
-        document.getElementById('rec-timer-badge').textContent = '⏺ ' + _fmt(_secs);
+        document.getElementById('rec-timer-badge').textContent = '⏺ ' + fmtTime(_secs);
       }, 1000);
     }
   };
@@ -3344,8 +3361,13 @@ document.addEventListener('drop', e => {
     if (_pendingExt === 'webm') blob = await _fixWebmDuration(blob, exactSecs);
     _pendingBlob = blob;
 
-    // Stop camera — we no longer need it
+    // Stop camera and live pose-detection analysis — recording is done, and
+    // the renaming screen covers the preview anyway, so there's nothing left
+    // for either to usefully do. Previously only the camera stopped; the
+    // analysis rAF loop (and its app.recMode-gated state) kept running
+    // indefinitely behind the rename overlay until the modal was closed.
     _stopPreview();
+    _stopRecAnalysis();
 
     // Pre-fill rename input with a timestamped default
     const now = new Date();

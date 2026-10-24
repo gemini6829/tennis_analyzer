@@ -21,27 +21,22 @@ const stroke = {
   lastRedVT:          null,  // video time of the most recent frame with speed > SPEED_START, during the current stroke
   SPEED_START:   0.65,    // normalized units/sec (in video-time) to start stroke
   SPEED_END:     0.25,    // drop below this to end stroke
-  END_GRACE:     0.35,    // speed must stay below SPEED_END for this long (seconds) before the stroke actually ends — absorbs brief mid-swing deceleration blips so one stroke doesn't get split into two
-  RED_TIMEOUT:   0.8,     // end the stroke if speed hasn't been above SPEED_START for this long (seconds), even if it never sustained a clean dip below SPEED_END — catches a swing that stalls in the "blue" zone
+  END_GRACE:     0.35,    // seconds speed must stay below SPEED_END before the stroke actually ends
+  RED_TIMEOUT:   0.8,     // ends the stroke if speed hasn't exceeded SPEED_START for this long (seconds)
   MIN_FRAMES:    3,       // min frames before stroke can be declared
   COOLDOWN:      1.5,     // min seconds between strokes (prevents double-fire)
 };
 
-// ── Body-relative speed normalization ────────────────────────────────────
-// Express wrist speed in units relative to the player's shoulder width.
-const REFERENCE_SHOULDER_W = 0.18; // "typical" shoulder width in normalized coords
+const REFERENCE_SHOULDER_W = 0.18;
 
 function bodyRelativeSpeed(dx, dy, dt, lms) {
   const ls = lms[LM.L_SHOULDER], rs = lms[LM.R_SHOULDER];
   const sw = (ls?.visibility > 0.3 && rs?.visibility > 0.3)
     ? Math.abs(rs.x - ls.x) : null;
-  // Only scale when shoulder width is reliable and meaningfully different from reference
   const scale = (sw && sw > 0.04) ? REFERENCE_SHOULDER_W / sw : 1;
   return Math.sqrt(dx * dx + dy * dy) / dt * scale;
 }
 
-// Find where the wrist was closest to the body midline before a stroke's speed
-// trigger fired, as a proxy for "where the backswing started".
 const PREP_START_MAX_LOOKBACK = 1.2; // seconds
 function findPrepStart(history, currentVT, minVT) {
   const clampedMinVT = Math.max(minVT, currentVT - PREP_START_MAX_LOOKBACK);
@@ -99,18 +94,6 @@ function renderStrokeMarkers() {
   });
 }
 
-// TEMPORARY DEBUG DISPLAY — commented out for now, re-enable by uncommenting
-// this function plus its call sites in processStroke() and the matching
-// HTML/CSS for #debug-speed-badge
-/*
-function _updateDebugSpeedBadge(html) {
-  const el = document.getElementById('debug-speed-badge');
-  if (!el) return;
-  el.style.display = 'block';
-  el.innerHTML = html;
-}
-*/
-
 function processStroke(lms) {
   const rW = lms[LM.R_WRIST], lW = lms[LM.L_WRIST];
   const wrist = (rW?.visibility ?? 0) >= (lW?.visibility ?? 0) ? rW : lW;
@@ -118,8 +101,7 @@ function processStroke(lms) {
 
   const vt = app.recRecording ? app._recElapsed : videoEl.currentTime;
 
-  // Pending serve check — must run before the cooldown guard so it fires during cooldown.
-  // Check BOTH wrists — at contact MediaPipe sometimes favours the non-hitting arm.
+  // Must run before the cooldown guard so it fires during cooldown.
   if (stroke.pendingServeCheck) {
     const { markerIdx, expiresVT } = stroke.pendingServeCheck;
     const shoulderY = ((lms[LM.L_SHOULDER]?.y ?? 0.35) + (lms[LM.R_SHOULDER]?.y ?? 0.35)) / 2;
@@ -140,11 +122,9 @@ function processStroke(lms) {
     }
   }
 
-  // Don't start a new stroke during the cooldown window after the last one
   if (!stroke.active && (vt - stroke.lastStrokeVT) < stroke.COOLDOWN) {
     stroke.prevPos = { x: wrist.x, y: wrist.y };
     stroke.prevVT  = vt;
-    // _updateDebugSpeedBadge(`speed: —  (cooldown, ${(stroke.COOLDOWN - (vt - stroke.lastStrokeVT)).toFixed(2)}s left)\nstart≥${stroke.SPEED_START}  end<${stroke.SPEED_END}`);
     return;
   }
 
@@ -154,8 +134,6 @@ function processStroke(lms) {
       const dx = wrist.x - stroke.prevPos.x;
       const dy = wrist.y - stroke.prevPos.y;
       const speed = bodyRelativeSpeed(dx, dy, dt, lms);
-      // const _speedCls = speed > stroke.SPEED_START ? 'hot' : speed < stroke.SPEED_END ? 'cool' : '';
-      // _updateDebugSpeedBadge(`speed: <span class="${_speedCls}">${speed.toFixed(3)}</span>\nstart≥${stroke.SPEED_START}  end<${stroke.SPEED_END}\nactive: ${stroke.active}`);
 
       // Maintain rolling wrist history for prep-start detection
       const liveMidX = ((lms[LM.L_SHOULDER]?.x ?? 0.4) + (lms[LM.R_SHOULDER]?.x ?? 0.6)) / 2;
@@ -209,11 +187,6 @@ function processStroke(lms) {
           ? Math.sqrt((wrist.x - firstBuf._wx) ** 2 + (wrist.y - firstBuf._wy) ** 2)
           : 1;
         const enoughTravel   = swingTravel > 0.08;
-        // Require speed to stay below SPEED_END continuously for END_GRACE seconds
-        // before actually ending the stroke — a brief mid-swing deceleration (e.g.
-        // the pause in a two-hander's transition, or a kick serve) would otherwise
-        // end the stroke early and register the follow-through as a second, separate
-        // stroke once speed picks back up again.
         const isSlow = speed < stroke.SPEED_END && enoughTravel;
         if (isSlow) {
           if (stroke.slowSinceVT === null) stroke.slowSinceVT = vt;
@@ -221,38 +194,20 @@ function processStroke(lms) {
           stroke.slowSinceVT = null;
         }
         const slowLongEnough = stroke.slowSinceVT !== null && (vt - stroke.slowSinceVT) >= stroke.END_GRACE;
-        // Second, independent end condition: if speed hasn't been "red" (above
-        // SPEED_START) for RED_TIMEOUT seconds, end the stroke even if it never
-        // sustained a clean dip below SPEED_END — catches a swing that stalls in
-        // the "blue" zone (between the two thresholds) without ever going properly
-        // slow, which the grace-window check above wouldn't otherwise catch.
         if (speed > stroke.SPEED_START) stroke.lastRedVT = vt;
         const redTimedOut = stroke.lastRedVT !== null && (vt - stroke.lastRedVT) > stroke.RED_TIMEOUT;
-        // const sinceRed = stroke.lastRedVT !== null ? (vt - stroke.lastRedVT) : 0;
-        // _updateDebugSpeedBadge(`speed: <span class="${_speedCls}">${speed.toFixed(3)}</span>\nstart≥${stroke.SPEED_START}  end<${stroke.SPEED_END}\nactive: ${stroke.active}\nsince red: ${sinceRed.toFixed(2)}s / ${stroke.RED_TIMEOUT}s`);
         if ((slowLongEnough || forceEnd || redTimedOut) && stroke.buffer.length >= stroke.MIN_FRAMES) {
-          // Report the moment the swing actually slowed down, not `vt` (now) — which
-          // is later by however long it took to CONFIRM the stroke had ended (the
-          // END_GRACE or RED_TIMEOUT delay). Reporting raw `vt` would make the
-          // recorded stop time overshoot the true end by a variable amount depending
-          // on which condition fired, which is what made it look inconsistent.
           const actualEndVT = slowLongEnough ? stroke.slowSinceVT
             : redTimedOut ? stroke.lastRedVT
-            : vt; // forceEnd: no clean "last known good" timestamp — use now
+            : vt;
           stroke.slowSinceVT = null;
           stroke.lastRedVT   = null;
           const avg   = avgMetrics(stroke.buffer);
           const type  = classifyStrokeType(stroke.buffer);
           const score = scoreStroke(avg, type);
 
-          // Voice feedback fires here, independent of the scan/marker reconciliation
-          // below — recording has no background scan to sync against, so waiting on
-          // that logic would sometimes silently skip speaking.
           if (app.recRecording && app.voiceFeedbackEnabled) speakStrokeFeedback(avg, type);
 
-          // Use the scan marker's pre-computed score so the feedback panel and
-          // marker colour are always the same number. Live playback updates the
-          // type only (dense 30fps frames give better classification accuracy).
           const nearest = stroke.markers.reduce((best, m) => {
             const d = Math.abs(m.startTime - stroke.startVT);
             return (!best || d < Math.abs(best.startTime - stroke.startVT)) ? m : best;
@@ -265,10 +220,6 @@ function processStroke(lms) {
           stroke.active       = false;
           stroke.buffer       = [];
 
-          // Sync with scan markers: refine type/score/endTime if scan found it,
-          // or add a new marker if the scan hadn't finished yet. This part stays
-          // conservative on purpose — only a close time match (or a still-in-
-          // progress scan) gets to create/mutate a stored marker.
           let panelResult = null;
           if (withinWindow) {
             nearest.type         = type;
@@ -284,28 +235,23 @@ function processStroke(lms) {
               panelResult = { metrics: avg, cards: generateFeedback(avg, type), score: displayScore, type, poseUnreliable: stroke.poseUnreliable };
             }
           } else {
-            // scanComplete && !withinWindow: don't create/mutate a marker (the scan
-            // already catalogued every real stroke, so this is probably a timing
-            // mismatch rather than a genuinely new one) — but the panel should
-            // still reflect the stroke that was just played instead of silently
-            // freezing on whatever was shown last.
             panelResult = { metrics: avg, cards: generateFeedback(avg, type), score: displayScore, type, poseUnreliable: stroke.poseUnreliable };
           }
           if (panelResult) {
+            // Don't render here — the timeupdate handler's continuous-playback
+            // reveal (driven by marker position vs. playback time) is the sole
+            // trigger for showing this in non-step mode; rendering from both
+            // here and there was causing every stroke's feedback panel to
+            // render twice.
             stroke.frozenResult = panelResult;
-            if (!app.strokeByStrokeMode) renderFrozenFeedback();
           }
 
           renderStrokeMarkers();
 
-          // Watch for wrist-above-shoulder in the next 2.5 s (serve reclassification)
           const pendingIdx = withinWindow ? stroke.markers.indexOf(nearest)
             : (!app.scanComplete ? stroke.markers.length - 1 : -1);
           stroke.pendingServeCheck = pendingIdx >= 0
             ? { markerIdx: pendingIdx, expiresVT: vt + 2.5 } : null;
-
-          // Auto-pause is now handled by timeupdate scanning marker positions,
-          // so no timeout needed here.
         }
       }
     }

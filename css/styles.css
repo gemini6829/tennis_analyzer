@@ -498,18 +498,6 @@ body.force-mobile .clip-actions { display: flex !important; }
     background: rgba(0,0,0,0.75); border: 1px solid rgba(248,81,73,0.4);
     border-radius: 8px; text-align: center; display: none;
 }
-.rec-voice-badge {
-    position: absolute; top: 100px; left: 50%; transform: translateX(-50%);
-    z-index: 24; max-width: calc(100% - 32px);
-    background: rgba(0,0,0,0.78); border: 1px solid rgba(88,166,255,0.4);
-    border-radius: 20px; padding: 7px 14px;
-    color: #79c0ff; font-size: 13px; text-align: center;
-    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-    opacity: 0; pointer-events: none;
-    transition: opacity 0.15s;
-}
-.rec-voice-badge.visible { opacity: 1; }
-.rec-voice-badge.error { color: #ffa198; border-color: rgba(248,81,73,0.4); }
 .rec-rename-overlay {
     position: absolute; inset: 0;
     background: rgba(0,0,0,0.88);

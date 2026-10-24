@@ -12,11 +12,11 @@ const scan = {
   buffer:       [],
   lastStrokeVT: -999,
   SPEED_START:  0.25,
-  SPEED_END:    0.20, // high enough to match real post-stroke deceleration at 0.2s intervals
+  SPEED_END:    0.20,
   slowSinceVT:  null, // video time speed first dropped below SPEED_END, continuously — null when not currently dipping
   lastRedVT:    null, // video time of the most recent frame with speed > SPEED_START, during the current stroke
-  END_GRACE:    0.35, // speed must stay below SPEED_END for this long (seconds) before the stroke actually ends
-  RED_TIMEOUT:  0.8,  // end the stroke if speed hasn't been above SPEED_START for this long (seconds)
+  END_GRACE:    0.35, // seconds speed must stay below SPEED_END before the stroke actually ends
+  RED_TIMEOUT:  0.8,  // ends the stroke if speed hasn't been above SPEED_START for this long (seconds)
   MIN_FRAMES:   2,
   COOLDOWN:     1.5,
   maxSpeed:          0,
@@ -165,14 +165,18 @@ function stopScan() {
 // ════════════════════════════════════════════════════════════
 //  SCAN RESULT PERSISTENCE
 // ════════════════════════════════════════════════════════════
-async function saveScanResults() {
+async function saveScanResults(force = false) {
   const userId = fbAuth.currentUser?.uid;
   const clipId = app.activeClipId;
   if (!userId || !clipId) return; // always save, even empty — persists deletions
 
   // Safety net: if this scan found 0 strokes but Firestore already has valid results
   // for this clip (e.g. a race-condition scan ran on stale data), do not overwrite.
-  if (stroke.markers.length === 0) {
+  // Callers doing a deliberate user edit (deleting/restoring a marker) pass
+  // force=true to bypass this — otherwise deleting a clip's last remaining
+  // stroke would silently fail to persist, since Firestore still has the
+  // pre-deletion (non-empty) results at the moment this runs.
+  if (!force && stroke.markers.length === 0) {
     const existingClip = app.clips.find(c => c.id === clipId);
     if (existingClip?.scanResults?.length && (existingClip.scanVersion ?? 0) >= SCAN_VERSION) {
       console.warn('[TA] Scan produced 0 strokes but Firestore has valid results — skipping overwrite.');
@@ -262,19 +266,13 @@ async function rescanVideo() {
   startScan();
 }
 
-// Called after each scan frame with the detected ball position (or null).
-// Maintains a rolling position history and fires a ball-triggered stroke
-// start when a significant direction reversal is detected — i.e. the
-// moment of contact, when the ball bounces off the racquet.
 function processScanBall(pos, vt) {
   if (pos) {
     scan.ballHistory.push({ vt, x: pos.x, y: pos.y });
   }
-  // Keep only recent history (within 1.5 s)
   while (scan.ballHistory.length && vt - scan.ballHistory[0].vt > 1.5)
     scan.ballHistory.shift();
 
-  // Need at least 3 positions to compute two velocity vectors
   const hist = scan.ballHistory;
   if (hist.length < 3) return;
 
@@ -282,7 +280,6 @@ function processScanBall(pos, vt) {
   const p1 = hist[hist.length - 2];
   const p2 = hist[hist.length - 1];
 
-  // Only consider recent, consecutive detections (no big time gaps)
   if (p2.vt - p0.vt > 1.0) return;
 
   const v1x = p1.x - p0.x, v1y = p1.y - p0.y;
@@ -290,18 +287,16 @@ function processScanBall(pos, vt) {
   const mag1 = Math.sqrt(v1x * v1x + v1y * v1y);
   const mag2 = Math.sqrt(v2x * v2x + v2y * v2y);
 
-  // Ball must be moving meaningfully both before and after contact
   if (mag1 < 0.03 || mag2 < 0.03) return;
 
   const cosAngle = (v1x * v2x + v1y * v2y) / (mag1 * mag2);
 
-  // Direction reversal: angle > ~100° between velocity vectors
   if (cosAngle < -0.18 && !scan.active && (vt - scan.lastStrokeVT) >= scan.COOLDOWN) {
     scan.active         = true;
     scan.ballTriggered  = true;
     scan.poseUnreliable = false;
     const minVT  = scan.lastStrokeVT + scan.COOLDOWN;
-    scan.startVT = Math.max(minVT, p1.vt - 0.4); // start just before contact
+    scan.startVT = Math.max(minVT, p1.vt - 0.4);
     scan.buffer  = [];
     scan.slowSinceVT = null;
     scan.lastRedVT   = vt;
@@ -318,9 +313,6 @@ function processScanStroke(lms) {
 
   const vt = scanEl.currentTime;
 
-  // Pending serve check: runs every frame even during cooldown, so we don't miss
-  // the wrist-above-shoulder contact that happens after the slow prep motion ends.
-  // Check BOTH wrists — at contact MediaPipe sometimes favours the non-hitting arm.
   if (scan.pendingServeCheck) {
     const { markerIdx, expiresVT } = scan.pendingServeCheck;
     const shoulderY   = ((lms[LM.L_SHOULDER]?.y ?? 0.35) + (lms[LM.R_SHOULDER]?.y ?? 0.35)) / 2;
@@ -345,7 +337,6 @@ function processScanStroke(lms) {
       const speed = bodyRelativeSpeed(dx, dy, dt, lms);
       if (speed > scan.maxSpeed) scan.maxSpeed = speed;
 
-      // Maintain rolling wrist history for prep-start detection
       const scanMidX = ((lms[LM.L_SHOULDER]?.x ?? 0.4) + (lms[LM.R_SHOULDER]?.x ?? 0.6)) / 2;
       scan.wristHistory.push({ vt, x: wrist.x, midX: scanMidX });
       while (scan.wristHistory.length && vt - scan.wristHistory[0].vt > 2.0)
@@ -364,7 +355,6 @@ function processScanStroke(lms) {
       if (scan.active) {
         if (isAnatomicallyImpossible(lms)) scan.poseUnreliable = true;
         const m = computeMetrics(lms, scanEl.videoWidth / scanEl.videoHeight);
-        // Store wrist trajectory data for stroke type classification
         const aw = (rW?.visibility ?? 0) >= (lW?.visibility ?? 0) ? rW : lW;
         m._wx = aw?.x ?? 0.5; m._wy = aw?.y ?? 0.5;
         m._rightDom  = (rW?.visibility ?? 0) >= (lW?.visibility ?? 0);
@@ -377,10 +367,6 @@ function processScanStroke(lms) {
         m._lsX = lms[LM.L_SHOULDER]?.x ?? 0.4;
         m._rsX = lms[LM.R_SHOULDER]?.x ?? 0.6;
         scan.buffer.push(m);
-        // End stroke when speed drops AND wrist has traveled enough (cross-body check),
-        // AND speed has stayed low for END_GRACE seconds — a brief mid-swing
-        // deceleration blip would otherwise end the stroke early and register the
-        // follow-through as a second, separate stroke once speed picks back up.
         const firstBuf   = scan.buffer[0];
         const swingTravel = firstBuf
           ? Math.sqrt((wrist.x - firstBuf._wx) ** 2 + (wrist.y - firstBuf._wy) ** 2)
@@ -393,15 +379,9 @@ function processScanStroke(lms) {
           scan.slowSinceVT = null;
         }
         const slowLongEnough = scan.slowSinceVT !== null && (vt - scan.slowSinceVT) >= scan.END_GRACE;
-        // Second, independent end condition: if speed hasn't been above SPEED_START
-        // for RED_TIMEOUT seconds, end the stroke even if it never sustained a clean
-        // dip below SPEED_END — catches a swing that stalls between the two
-        // thresholds without ever going properly slow.
         if (speed > scan.SPEED_START) scan.lastRedVT = vt;
         const redTimedOut = scan.lastRedVT !== null && (vt - scan.lastRedVT) > scan.RED_TIMEOUT;
         if ((slowLongEnough || redTimedOut) && scan.buffer.length >= scan.MIN_FRAMES) {
-          // Report the moment the swing actually slowed down, not `vt` (now) — see
-          // the matching comment in processStroke() for why.
           const actualEndVT = slowLongEnough ? scan.slowSinceVT : scan.lastRedVT;
           scan.lastRedVT = null;
           scan.slowSinceVT = null;
