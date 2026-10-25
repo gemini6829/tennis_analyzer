@@ -230,11 +230,11 @@ function loadCachedScan(clip) {
     cards:          m.cards   || null,
   }));
   renderStrokeMarkers();
-  showCachedScanUI(stroke.markers.length);
+  showCachedScanUI();
   return true;
 }
 
-function showCachedScanUI(n) {
+function showCachedScanUI() {
   document.getElementById('feedback-scroll').innerHTML = '';
 }
 
@@ -300,7 +300,6 @@ function processScanBall(pos, vt) {
     scan.buffer  = [];
     scan.slowSinceVT = null;
     scan.lastRedVT   = vt;
-    console.log('[TA] Ball-triggered stroke at', vt.toFixed(2));
     console.log('[TA] Ball-triggered stroke at', vt.toFixed(2));
   }
 }
@@ -443,7 +442,7 @@ function showScanCompleteUI() {
   const n = stroke.markers.length;
   // Show first stroke's analysis immediately rather than a plain text message
   if (n > 0 && stroke.markers[0].metrics) {
-    showMarkerFeedback(stroke.markers[0], 0);
+    showMarkerFeedback(stroke.markers[0]);
     return;
   }
   document.getElementById('feedback-scroll').innerHTML = `

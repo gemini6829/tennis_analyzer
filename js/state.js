@@ -12,9 +12,7 @@ const app = {
   modelsReady:   false,
   landmarks:     null,
   racquetBox:    null,
-  liveBallPos:   null,  // {x,y} normalised, most recent detection
   ballTrail:     [],    // [{x,y,t}] recent detections for path drawing (t = performance.now())
-  ballDebugCount: 0,    // raw matching pixel count from last detectBall call
   detecting:     false,
   rafId:         null,
   frameCount:    0,

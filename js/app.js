@@ -9,15 +9,6 @@ const SCAN_VERSION = 11;
 const videoEl   = document.getElementById('video-el');
 const canvas    = document.getElementById('overlay-canvas');
 const ctx       = canvas.getContext('2d');
-document.getElementById('video-viewport').addEventListener('mousemove', e => {
-  const r = canvas.getBoundingClientRect();
-  app.debugMouseX = (e.clientX - r.left) / r.width;
-  app.debugMouseY = (e.clientY - r.top)  / r.height;
-});
-document.getElementById('video-viewport').addEventListener('mouseleave', () => {
-  app.debugMouseX = null;
-  app.debugMouseY = null;
-});
 const fileInput = document.getElementById('file-input');
 
 // Offscreen canvas for live ball detection
@@ -57,8 +48,6 @@ let ballDetErrors     = 0;
 let _clusterVisited   = null;  // reusable visited buffer for global cluster DFS
 let _clusterStack     = null;  // reusable stack buffer for global cluster DFS
 let ballLastValidList = [];   // [{x, y, t}] recent accepted detections — cluster must be near any one
-let ballPendingDet    = null; // unconfirmed candidate — must be followed by consistent detection
-const BALL_MAX_SPEED  = 0.3; // fallback when no pose data available
 const BALL_RESET_MS   = 2000; // reset trajectory reference after this gap (new rally/serve)
 
 // ── Court calibration (persistence) ────────────────────────────────────
@@ -94,12 +83,6 @@ async function saveCourtCalibFirestore(clipId, points) {
 
 function applyCourtCalib(data) {
   courtCalib = data;
-  const btn = document.getElementById('calib-btn');
-  if (btn) {
-    btn.classList.toggle('calibrated', !!data);
-    btn.title       = data ? 'Play area set — click to redo' : 'Mark play area';
-    btn.textContent = data ? '⊹ Area ✓' : '⊹ Area';
-  }
 }
 
 // ── Calibration UI helpers ────────────────────────────────────────────────────
@@ -358,31 +341,12 @@ calibOverlayEl.addEventListener('mouseleave', () => {
   if (calib.active) drawCalibCanvas();
 });
 
-// Dynamic velocity limit calibrated by the player's shoulder width.
-// Shoulder width in normalised coords naturally scales with camera zoom:
-// wider frame (zoomed out) → smaller shoulder → smaller limit, and vice versa.
-// 6 shoulder-widths/second ≈ 60-80mph on a typical broadcast shot.
-function dynamicBallMaxSpeed() {
-  const lms = app.landmarks;
-  if (lms) {
-    const ls = lms[11], rs = lms[12]; // L_SHOULDER, R_SHOULDER
-    if (ls && rs && (ls.visibility ?? 1) > 0.4 && (rs.visibility ?? 1) > 0.4) {
-      const dx = ls.x - rs.x, dy = ls.y - rs.y;
-      const sw = Math.sqrt(dx * dx + dy * dy);
-      if (sw > 0.03) return 2 * sw; // 2 shoulder-widths per second
-    }
-  }
-  return BALL_MAX_SPEED;
-}
-
 function resetBallMotion() {
   ballPrevData      = null;
   ballArrivalFrame  = null;
   ballDetFrameCount = 0;
   ballLastValidList = [];
-  ballPendingDet    = null;
   app.ballTrail     = [];
-  app.liveBallPos   = null;
   app.debugClusterHistory = [];
   app.debugClusters      = [];
   // Clear the camera-shift streak too — otherwise a partial count from before
@@ -527,7 +491,6 @@ function detectBall(ctx2d, w, h, searchRegions, courtPoly, excludeMask) {
   try {
     curr = ctx2d.getImageData(0, 0, w, h).data;
   } catch (e) {
-    app.ballDebugCount = -1;
     if (ballDetErrors++ < 3) console.warn('[TA] Ball detect getImageData failed:', e.message);
     return null;
   }
@@ -538,7 +501,6 @@ function detectBall(ctx2d, w, h, searchRegions, courtPoly, excludeMask) {
     ballPrevData      = new Uint8ClampedArray(curr);
     ballArrivalFrame  = new Uint16Array(numPixels);
     ballDetFrameCount = 1;
-    app.ballDebugCount = 0;
     return null;
   }
 
@@ -710,7 +672,6 @@ function detectBall(ctx2d, w, h, searchRegions, courtPoly, excludeMask) {
   for (const cl of clusters) delete cl._px;
 
   app.debugClusters  = clusters;
-  app.ballDebugCount = clusters.length;
 
   if (clusters.length === 0) return null;
 
@@ -779,8 +740,6 @@ async function loadUserSettings(userId) {
     app.angleOverlay         = data.angleOverlay         ?? false;
     app.voiceFeedbackEnabled = data.voiceFeedbackEnabled  ?? true;
     app.strokeByStrokeMode   = data.strokeByStrokeMode    ?? false;
-    const sbsToggle = document.getElementById('sbs-toggle');
-    if (sbsToggle) sbsToggle.checked = app.strokeByStrokeMode;
   } catch(e) { console.warn('[TA] Could not load settings:', e); }
 }
 
@@ -940,9 +899,6 @@ function settingsSetHandedness(h) {
 
 function settingsToggleAutoPause(on) {
   app.strokeByStrokeMode = on;
-  // Keep existing #sbs-toggle in sync
-  const el = document.getElementById('sbs-toggle');
-  if (el) el.checked = on;
   saveUserSetting('strokeByStrokeMode', on);
 }
 
@@ -1484,7 +1440,7 @@ videoEl.addEventListener('timeupdate', () => {
     if (pending) {
       app.lastPausedMarkerVT = pending.startTime;
       videoEl.pause();
-      showMarkerFeedback(pending, stroke.markers.indexOf(pending));
+      showMarkerFeedback(pending);
     }
   } else {
     // Continuous playback: show each stroke's score/feedback the moment the
@@ -1501,7 +1457,7 @@ videoEl.addEventListener('timeupdate', () => {
     });
     if (nextMarker) {
       app.lastShownMarkerVT = nextMarker.startTime;
-      showMarkerFeedback(nextMarker, stroke.markers.indexOf(nextMarker));
+      showMarkerFeedback(nextMarker);
     }
   }
 });
@@ -1633,8 +1589,7 @@ function isRacquetNearWrist(bbox) {
 
 function stopLoop() {
   if (app.rafId) { cancelAnimationFrame(app.rafId); app.rafId = null; }
-  app.liveBallPos = null;
-  app.ballTrail   = [];
+  app.ballTrail = [];
 }
 
 async function loop() {
@@ -1689,7 +1644,6 @@ async function loop() {
       app.debugClusterHistory = app.debugClusterHistory.filter(e => now - e.t < 2000);
 
       // Accept detection directly — append to list, no velocity gating.
-      app.liveBallPos = rawPos || null;
       if (rawPos) {
         ballLastValidList.push({ x: rawPos.x, y: rawPos.y, t: now });
         app.ballTrail.push({ x: rawPos.x, y: rawPos.y, t: now });

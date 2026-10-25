@@ -88,7 +88,7 @@ function renderStrokeMarkers() {
     el.addEventListener('click', e => {
       e.stopPropagation();
       videoEl.currentTime = startTime;
-      showMarkerFeedback(marker, i);
+      showMarkerFeedback(marker);
     });
     track.appendChild(el);
   });

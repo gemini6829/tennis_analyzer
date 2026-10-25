@@ -217,11 +217,6 @@ function scoreStroke(m, type) {
   return max > 0 ? Math.round(pts / max * 100) : null;
 }
 
-function toggleStrokeByStroke() {
-  app.strokeByStrokeMode = document.getElementById('sbs-toggle').checked;
-  saveUserSetting('strokeByStrokeMode', app.strokeByStrokeMode);
-}
-
 function nextStroke() {
   if (app.sbsPauseTimeout) { clearTimeout(app.sbsPauseTimeout); app.sbsPauseTimeout = null; }
   app.lastLandmarkVT   = videoEl.currentTime;
@@ -507,7 +502,7 @@ function renderRecFeedback(lms) {
   _wireDetailsPersistence(scroll);
 }
 
-function showMarkerFeedback(marker, idx) {
+function showMarkerFeedback(marker) {
   if (!marker.metrics && !marker.cards) return;
   // Track which marker is on screen regardless of how it got there (auto-pause,
   // the continuous-playback reveal, or a direct click on its tick) — notAStroke()
